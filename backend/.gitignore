@@ -2,13 +2,23 @@
 .env
 .env.local
 .env.*.local
+
 # Compiled output
 dist/
+
 # Node dependencies
 node_modules/
+
+# Prisma generated client (generated locally via prisma generate)
+src/generated/
+
 # OS artefacts
 .DS_Store
 Thumbs.db
+
 # Editor directories
 .vscode/
 .idea/
+
+# Other
+docs

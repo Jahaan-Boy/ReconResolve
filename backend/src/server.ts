@@ -1,5 +1,3 @@
-// Must be the very first import so dotenv populates process.env before config
-// reads any variables.
 import './config'; // side-effect: validates env on load via loadConfig()
 import http from 'http';
 import { config } from './config';
@@ -7,14 +5,11 @@ import { buildApp } from './app';
 import { connectDB, closeDB } from './db/postgres';
 
 async function main(): Promise<void> {
-    // ── 1. Connect to PostgreSQL ──────────────────────────────────────────────
     await connectDB();
 
-    // ── 2. Build the Express application ─────────────────────────────────────
     const app = buildApp();
     const server = http.createServer(app);
 
-    // ── 3. Graceful shutdown handlers ────────────────────────────────────────
     const shutdown = async (signal: string): Promise<void> => {
         console.log(`[shutdown] ${signal} received — closing server…`);
         server.close(async () => {
@@ -33,7 +28,6 @@ async function main(): Promise<void> {
     process.on('SIGINT', () => void shutdown('SIGINT'));
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
-    // ── 4. Start listening ───────────────────────────────────────────────────
     server.listen(config.port, config.host, () => {
         console.log(`[startup] ReconResolve API is ready — http://${config.host}:${config.port}`);
     });
