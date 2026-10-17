@@ -1,5 +1,5 @@
 # ReconResolve
-Minimal Fastify 5 + TypeScript API with a PostgreSQL connection — Day 1 foundation.
+Minimal Express + TypeScript API with a PostgreSQL connection — Day 1 foundation.
 ---
 ## Prerequisites
 | Requirement | Version |
@@ -69,7 +69,7 @@ See `.env.example` for a template.
 ## Project structure
 ```
 src/
-├── app.ts          # Fastify app factory (buildApp)
+├── app.ts          # Express app factory (buildApp)
 ├── server.ts       # Entry point — connects DB then starts listener
 ├── config.ts       # Environment validation
 ├── db/
