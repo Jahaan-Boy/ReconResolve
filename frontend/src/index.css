@@ -1,0 +1,105 @@
+@import 'tailwindcss';
+
+@theme static {
+    --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji';
+    --font-display: 'Instrument Serif', ui-serif, Georgia, 'Times New Roman', serif;
+
+    /* Bluish grey */
+    --color-steel-50: #f5f7fa;
+    --color-steel-100: #e9edf3;
+    --color-steel-200: #d5dce6;
+    --color-steel-300: #b6c2d2;
+    --color-steel-400: #90a1b8;
+    --color-steel-500: #72849e;
+    --color-steel-600: #5b6c85;
+    --color-steel-700: #4a586c;
+    --color-steel-800: #3e4a5b;
+    --color-steel-900: #2f3947;
+    --color-steel-950: #161c25;
+
+    /* Cool blue accent */
+    --color-accent-50: #eef6ff;
+    --color-accent-100: #d9eaff;
+    --color-accent-200: #bcdbff;
+    --color-accent-300: #8ec4ff;
+    --color-accent-400: #59a3ff;
+    --color-accent-500: #3380f5;
+    --color-accent-600: #1f63e0;
+    --color-accent-700: #1b4fb8;
+    --color-accent-800: #1c4494;
+    --color-accent-900: #1c3b75;
+}
+
+@theme {
+    --animate-marquee: marquee 50s linear infinite;
+    --animate-scroll-y: scroll-y 16s linear infinite;
+    --animate-blob: blob 18s ease-in-out infinite;
+    --animate-blob-slow: blob 28s ease-in-out infinite reverse;
+
+    @keyframes marquee {
+        to {
+            transform: translateX(-50%);
+        }
+    }
+
+    @keyframes scroll-y {
+        to {
+            transform: translateY(-50%);
+        }
+    }
+
+    @keyframes blob {
+
+        0%,
+        100% {
+            transform: translate3d(0, 0, 0) scale(1);
+        }
+
+        33% {
+            transform: translate3d(40px, -30px, 0) scale(1.1);
+        }
+
+        66% {
+            transform: translate3d(-30px, 30px, 0) scale(0.95);
+        }
+    }
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 4rem;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        html {
+            scroll-behavior: auto;
+        }
+    }
+
+    body {
+        background-color: var(--color-steel-50);
+        color: var(--color-steel-800);
+    }
+
+    ::selection {
+        background-color: var(--color-accent-200);
+        color: var(--color-steel-950);
+    }
+}
+
+/* Dotted texture that fades toward the bottom. */
+@utility bg-dot-grid {
+    background-image: radial-gradient(var(--color-steel-300) 1px, transparent 1px);
+    background-size: 22px 22px;
+    -webkit-mask-image: linear-gradient(to bottom, black 30%, transparent);
+    mask-image: linear-gradient(to bottom, black 30%, transparent);
+}
+
+/* Fine film grain, used at very low opacity for depth. */
+@utility bg-grain {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
