@@ -1,86 +1,146 @@
-# ReconResolve
-Express + TypeScript + Prisma API with PostgreSQL — Day 2 foundation.
+# FlowOps — AI-Assisted Payment Reconciliation
+
+> Reconcile payments, surface mismatches, and resolve them with evidence and a full audit trail.
+
 ---
+
+## Overview
+
+FlowOps is a payment reconciliation platform that ingests PayPal webhook events, matches them against merchant orders, and uses an AI investigator to explain discrepancies — without ever moving money on its own.
+
+The project is structured as a **monorepo** with two packages:
+
+| Directory | Stack | Purpose |
+|---|---|---|
+| `frontend/` | React 19 · Vite 8 · Tailwind CSS 4 · Motion | Product landing page |
+| `backend/` | Express 4 · TypeScript · Prisma 6 · PostgreSQL | API server and data model |
+
+---
+
 ## Prerequisites
+
 | Requirement | Version |
 |---|---|
-| Node.js | 20 or newer (required by Prisma 6) |
+| Node.js | 20 or newer |
 | npm | 9 or newer (bundled with Node 20) |
-| PostgreSQL | 14 or newer, running locally or remotely |
+| PostgreSQL | 14 or newer (local or remote, e.g. Neon) |
+
 ---
-## Setup
-### 1. Install dependencies
+
+## Quick Start
+
+### 1. Clone and install
+
 ```bash
+# Install backend dependencies
+cd backend
+npm install
+
+# Install frontend dependencies
+cd ../frontend
 npm install
 ```
-### 2. Create your local environment file
+
+### 2. Configure the backend
+
 ```bash
+cd backend
 cp .env.example .env
 ```
-### 3. Configure the database connection
-Open `.env` and set `DATABASE_URL` to a valid PostgreSQL connection string:
+
+Edit `.env` and set `DATABASE_URL` to a valid PostgreSQL connection string:
+
 ```
 DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<database>
 ```
-Example for a local installation:
-```
-DATABASE_URL=postgresql://postgres:secret@localhost:5432/reconresolve_dev
-```
-> **Note:** The database must already exist before running migrations.  
-> Create it with `createdb reconresolve_dev` or your preferred tool.
----
-## Database setup
-### Generate Prisma Client
+
+### 3. Run database migrations and seed
+
 ```bash
-npm run db:generate
+cd backend
+npm run db:generate       # Generate Prisma Client
+npm run db:migrate        # Apply all migrations
+npm run db:seed           # Seed demo merchant (idempotent)
 ```
-### Validate schema (optional pre-flight)
+
+### 4. Start development servers
+
+**Backend** (Express — port 3000):
+
 ```bash
-npm run db:validate
-```
-### Run migrations (creates all tables, enums, indexes, and check constraints)
-```bash
-npm run db:migrate
-```
-> For CI / production deployments use `npm run db:deploy` (applies without prompts).
-### Seed development data (creates one demo merchant — idempotent)
-```bash
-npm run db:seed
-```
-Running this twice produces exactly one merchant row.
----
-## Running the server
-### Development (live reload via tsx)
-```bash
+cd backend
 npm run dev
 ```
-The server starts on `http://0.0.0.0:3000` by default (configurable via `HOST` and `PORT` in `.env`).
-> PostgreSQL must be running and migrations must have been applied **before** starting the server.
-### Test the health endpoint
+
+**Frontend** (Vite — port 5173):
+
 ```bash
-curl http://localhost:3000/health
+cd frontend
+npm run dev
 ```
-Expected response:
-```json
-{"status":"ok"}
-```
+
 ---
-## Production build
-```bash
-npm run build
-npm start
-```
----
-## Environment variables
-| Variable | Required | Description |
+
+## Frontend
+
+The frontend is a React 19 + TypeScript landing page built with Vite and styled with Tailwind CSS 4. It uses [Motion](https://motion.dev) for animations and [Lucide](https://lucide.dev) for icons.
+
+### Landing Page Sections
+
+| Section | Description |
+|---|---|
+| **Hero** | Animated headline, live reconciliation console preview, key stats |
+| **Problem** | Three pain points FlowOps solves (duplicates, mismatches, manual investigation) |
+| **How It Works** | Four-step pipeline: Ingest → Reconcile → Investigate → Resolve |
+| **Features** | Six capability cards (webhooks, processing, matching, AI, exceptions, audit) |
+| **Benefits** | Value propositions with spotlight card interactions |
+| **Call to Action** | Sign-up prompt with safety guarantees |
+
+### Scripts
+
+| Script | Command | Purpose |
 |---|---|---|
-| `NODE_ENV` | Yes | `development`, `test`, or `production` |
-| `HOST` | Yes | Interface to bind (e.g. `0.0.0.0`) |
-| `PORT` | Yes | Port to listen on (e.g. `3000`) |
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-See `.env.example` for a template.
+| `dev` | `vite` | Start dev server with HMR |
+| `build` | `tsc -b && vite build` | Type-check and create production bundle |
+| `preview` | `vite preview` | Preview production build locally |
+| `lint` | `eslint .` | Run ESLint |
+
+### Key Dependencies
+
+- **React 19** + **React DOM 19**
+- **Tailwind CSS 4** via `@tailwindcss/vite`
+- **Motion 14** (Framer Motion successor)
+- **Lucide React** for icons
+- **Inter** (variable) + **Instrument Serif** fonts via `@fontsource`
+
 ---
-## NPM scripts reference
+
+## Backend
+
+The backend is an Express + TypeScript API server with Prisma 6 ORM managing PostgreSQL.
+
+### Architecture
+
+- **Single PrismaClient instance** per process, managed by `src/db/postgres.ts`
+- `connectDB()` — instantiates client and verifies connectivity with `SELECT 1`
+- `closeDB()` — disconnects cleanly during graceful shutdown
+- `getDB()` — returns the active client to route/service layers
+
+### Data Model (6 entities, 9 enums)
+
+| Entity | Table | Purpose |
+|---|---|---|
+| `Merchant` | `merchants` | Tenant/workspace — owns all data |
+| `ProviderConnection` | `provider_connections` | Merchant's link to a payment provider |
+| `ProviderTransaction` | `provider_transactions` | Normalized provider-side transaction |
+| `MerchantOrder` | `merchant_orders` | Merchant-side order for reconciliation |
+| `ReconciliationRun` | `reconciliation_runs` | Time-windowed reconciliation attempt |
+| `ReconciliationException` | `reconciliation_exceptions` | Discrepancy record |
+
+Money is stored as **BigInt minor units** with **CHAR(3) ISO 4217** currency codes. See `backend/docs/data-model.md` for full entity docs, constraints, and tenant isolation invariants.
+
+### Scripts
+
 | Script | Command | Purpose |
 |---|---|---|
 | `dev` | `tsx src/server.ts` | Start server with live reload |
@@ -91,56 +151,82 @@ See `.env.example` for a template.
 | `db:migrate` | `prisma migrate dev` | Create and apply migrations (dev) |
 | `db:seed` | `prisma db seed` | Run idempotent development seed |
 | `db:deploy` | `prisma migrate deploy` | Apply existing migrations (CI/prod) |
+
+### Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `NODE_ENV` | Yes | `development`, `test`, or `production` |
+| `HOST` | Yes | Interface to bind (e.g. `0.0.0.0`) |
+| `PORT` | Yes | Port to listen on (e.g. `3000`) |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+
+### API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check — returns `{"status":"ok"}` |
+
 ---
-## Project structure
+
+## Project Structure
+
 ```
-prisma/
-├── schema.prisma          # Core domain schema (enums, models, indexes)
-├── seed.ts                # Idempotent demo-merchant seed
-└── migrations/
-    ├── 20261017155346_core_domain/
-    │   └── migration.sql  # Tables, FKs, indexes
-    └── 20261017155445_add_check_constraints/
-        └── migration.sql  # DB CHECK constraints (window, amounts, source)
-src/
-├── app.ts                 # Express app factory (buildApp)
-├── server.ts              # Entry point — connects DB then starts listener
-├── config.ts              # Environment validation
-├── db/
-│   └── postgres.ts        # Singleton PrismaClient — connectDB(), closeDB(), getDB()
-└── routes/
-    └── health.ts          # GET /health
-docs/
-└── data-model.md          # Entity ownership, constraints, money rules, invariants
+ReconResolve/
+├── frontend/                     # React + Vite landing page
+│   ├── index.html                # HTML shell with SEO meta tags
+│   ├── vite.config.ts            # Vite + Tailwind + React plugin config
+│   ├── public/                   # Static assets (favicon)
+│   └── src/
+│       ├── App.tsx               # Root component (MotionConfig wrapper)
+│       ├── main.tsx              # Entry point
+│       ├── index.css             # Tailwind imports and global styles
+│       ├── components/
+│       │   ├── brand/            # Logo component
+│       │   ├── layout/           # Header, Footer, Container, Section
+│       │   ├── motion/           # Animation primitives (Reveal, Tilt, CountUp, etc.)
+│       │   └── ui/               # Badge, ButtonLink, Card, IconTile, SectionHeading
+│       └── features/
+│           └── landing/
+│               ├── LandingPage.tsx
+│               ├── content.ts     # All copy, nav links, and data constants
+│               ├── components/    # HeroConsole, HeroBackdrop, Marquee, Stats
+│               └── sections/      # Hero, Problem, HowItWorks, Features, Benefits, CTA
+│
+├── backend/                      # Express + Prisma API server
+│   ├── .env.example              # Environment template
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── prisma/
+│   │   ├── schema.prisma         # Core domain schema
+│   │   ├── seed.ts               # Idempotent demo-merchant seed
+│   │   └── migrations/           # Version-controlled migration SQL
+│   ├── docs/
+│   │   └── data-model.md         # Entity docs, constraints, invariants
+│   └── src/
+│       ├── app.ts                # Express app factory
+│       ├── server.ts             # Entry point (DB connect → HTTP listen)
+│       ├── config.ts             # Environment validation
+│       ├── db/
+│       │   └── postgres.ts       # Singleton PrismaClient module
+│       ├── generated/            # Prisma-generated client (gitignored)
+│       └── routes/
+│           └── health.ts         # GET /health
+│
+└── README.md                     # ← You are here
 ```
----
-## Database connection architecture
-Prisma 6 (v6.19.3) is the single data-access path. There is **one PrismaClient instance per process**, managed by `src/db/postgres.ts`.
-
-- `connectDB()` — instantiates the client and verifies connectivity with `SELECT 1`.
-- `closeDB()` — disconnects cleanly during graceful shutdown.
-- `getDB()` — returns the active client to route/service code.
-
-The bare `pg` driver is no longer used directly; Prisma manages the underlying connection pool.
-
-**Why Prisma 6, not 7?**  
-Prisma 7 requires ESM (`"type": "module"`) and a significant tsconfig change. The project uses CommonJS + `tsx` for development — migrating to ESM would be a breaking change unrelated to Day 2 scope. Prisma 6.19.3 is the latest stable release compatible with this configuration.
 
 ---
-## Data model summary
-See [`docs/data-model.md`](docs/data-model.md) for full entity documentation including:
-- Tenant isolation rules
-- Money representation (BigInt minor units, ISO 4217 currency codes)
-- Unique constraints and cross-merchant integrity invariants
-- DB check constraints
 
----
-## What is NOT included (Day 2 scope)
-This version establishes the schema and persistence foundation only:
-- No PayPal API calls or OAuth credentials
-- No webhook ingestion or payload processing
-- No reconciliation matching logic
-- No authentication or authorization
-- No Redis, queues, or worker processes
-- No frontend UI
-- No public CRUD APIs for any entity
+## What Is Not Yet Implemented
+
+This version establishes the landing page and persistence foundation:
+
+- ❌ PayPal API integration / OAuth credentials
+- ❌ Webhook ingestion and payload processing
+- ❌ Reconciliation matching engine
+- ❌ AI investigator
+- ❌ Authentication and authorization
+- ❌ Redis, BullMQ, or worker processes
+- ❌ Dashboard / application UI
+- ❌ Public CRUD APIs

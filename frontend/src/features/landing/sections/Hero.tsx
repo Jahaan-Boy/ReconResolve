@@ -44,7 +44,7 @@ export function Hero() {
 
                     <Reveal delay={0.9}>
                         <p className="mt-6 max-w-xl text-lg leading-8 text-steel-600">
-                            FlowOps ingests your PayPal events, matches them against your orders, and turns every
+                            ReconResolve ingests your PayPal events, matches them against your orders, and turns every
                             discrepancy into an investigation with evidence, so your team can resolve it fast.
                         </p>
                     </Reveal>

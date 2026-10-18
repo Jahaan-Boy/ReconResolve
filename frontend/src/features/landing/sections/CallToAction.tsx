@@ -33,7 +33,7 @@ export function CallToAction() {
                     </h2>
                     <Reveal delay={0.3} y={16}>
                         <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-steel-300">
-                            See how FlowOps turns scattered payment events into a clear, auditable workflow for
+                            See how ReconResolve turns scattered payment events into a clear, auditable workflow for
                             your team.
                         </p>
                     </Reveal>

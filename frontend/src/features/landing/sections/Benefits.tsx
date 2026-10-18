@@ -34,7 +34,7 @@ export function Benefits() {
                 <div className="lg:col-span-2">
                     <SectionHeading
                         id="benefits-title"
-                        eyebrow="Why FlowOps"
+                        eyebrow="Why ReconResolve"
                         title="Fewer surprises. Faster answers. *Full* control."
                         description="Reconciliation should give your team confidence, not another dashboard to babysit."
                     />
