@@ -128,6 +128,7 @@ model ProviderTransaction {
   merchantId           String                  @map("merchant_id") @db.Uuid
   providerConnectionId String                  @map("provider_connection_id") @db.Uuid
   providerTxnId        String                  @map("provider_txn_id")
+  providerRecordKey    String                  @map("provider_record_key") @db.VarChar(128)
   providerOrderId      String?                 @map("provider_order_id")
   type                 ProviderTransactionType
   status               TransactionStatus
@@ -144,7 +145,8 @@ model ProviderTransaction {
   providerConnection ProviderConnection        @relation(fields: [providerConnectionId], references: [id])
   exceptions         ReconciliationException[]
 
-  @@unique([providerConnectionId, providerTxnId])
+  @@unique([providerConnectionId, providerRecordKey])
+  @@index([providerConnectionId, providerTxnId])
   @@index([merchantId, occurredAt])
   @@index([merchantId, providerOrderId])
   @@map("provider_transactions")
