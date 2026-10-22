@@ -77,6 +77,19 @@ enum ExceptionStatus {
   DISMISSED
 }
 
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum OutboxStatus {
+  PENDING
+  DISPATCHED
+  FAILED
+}
+
 // ---------------------------------------------------------------------------
 // Merchant
 
@@ -94,6 +107,8 @@ model Merchant {
   providerTransactions ProviderTransaction[]
   reconciliationRuns   ReconciliationRun[]
   exceptions           ReconciliationException[]
+  webhookEvents        WebhookEvent[]
+  outboxEvents         OutboxEvent[]
 
   @@map("merchants")
 }
@@ -107,6 +122,7 @@ model ProviderConnection {
   provider          Provider
   connectionKey     String                   @map("connection_key")
   providerAccountId String?                  @map("provider_account_id")
+  webhookId         String?                  @map("webhook_id")
   status            ProviderConnectionStatus @default(DISABLED)
   createdAt         DateTime                 @default(now()) @map("created_at")
   updatedAt         DateTime                 @updatedAt @map("updated_at")
@@ -114,6 +130,7 @@ model ProviderConnection {
   // Relations
   merchant             Merchant              @relation(fields: [merchantId], references: [id])
   providerTransactions ProviderTransaction[]
+  webhookEvents        WebhookEvent[]
 
   @@unique([merchantId, provider, connectionKey])
   @@index([merchantId, provider])
@@ -225,4 +242,61 @@ model ReconciliationException {
   @@index([merchantId, status, createdAt])
   @@index([merchantId, reconciliationRunId])
   @@map("reconciliation_exceptions")
+}
+
+// ---------------------------------------------------------------------------
+// WebhookEvent
+// ---------------------------------------------------------------------------
+
+model WebhookEvent {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  merchantId           String                  @map("merchant_id") @db.Uuid
+  providerConnectionId String                  @map("provider_connection_id") @db.Uuid
+  provider             Provider                @default(PAYPAL)
+  providerEventId      String                  @map("provider_event_id")
+  eventType            String                  @map("event_type")
+  resourceType         String?                 @map("resource_type")
+  transmissionId       String?                 @map("transmission_id")
+  transmissionTime     DateTime?               @map("transmission_time") @db.Timestamptz(6)
+  verifiedAt           DateTime                @default(now()) @map("verified_at") @db.Timestamptz(6)
+  receivedAt           DateTime                @default(now()) @map("received_at") @db.Timestamptz(6)
+  processingStatus     WebhookProcessingStatus @default(RECEIVED) @map("processing_status")
+  payload              Json
+  createdAt            DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  merchant           Merchant           @relation(fields: [merchantId], references: [id])
+  providerConnection ProviderConnection @relation(fields: [providerConnectionId], references: [id])
+
+  @@unique([providerConnectionId, providerEventId])
+  @@index([merchantId, receivedAt])
+  @@index([processingStatus, receivedAt])
+  @@map("webhook_events")
+}
+
+// ---------------------------------------------------------------------------
+// OutboxEvent
+// ---------------------------------------------------------------------------
+
+model OutboxEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  merchantId    String       @map("merchant_id") @db.Uuid
+  aggregateType String       @map("aggregate_type")
+  aggregateId   String       @map("aggregate_id")
+  eventType     String       @map("event_type")
+  payload       Json
+  status        OutboxStatus @default(PENDING)
+  attemptCount  Int          @default(0) @map("attempt_count")
+  availableAt   DateTime     @default(now()) @map("available_at") @db.Timestamptz(6)
+  dispatchedAt  DateTime?    @map("dispatched_at") @db.Timestamptz(6)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+
+  @@unique([merchantId, aggregateType, aggregateId, eventType])
+  @@index([status, availableAt])
+  @@index([merchantId, createdAt])
+  @@map("outbox_events")
 }
