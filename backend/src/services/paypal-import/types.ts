@@ -5,8 +5,10 @@ import type {
 } from '../../domain/transaction';
 
 export interface ImportRange {
-    from: Date;
-    to: Date;
+    startDate?: string;
+    endDate?: string;
+    from?: Date;
+    to?: Date;
 }
 
 export interface ImportContext {
@@ -16,7 +18,8 @@ export interface ImportContext {
 
 export interface ImportRecord {
     providerTxnId: string;
-    providerEventCode: string;
+    providerEventCode?: string;
+    eventCode?: string;
     providerOrderId: string | null;
     type: ProviderTransactionType;
     status: TransactionStatus;
@@ -49,7 +52,7 @@ export interface PersistCounts {
 }
 
 export interface ProviderTransactionStore {
-    persist(context: ImportContext, records: readonly KeyedImportRecord[]): Promise<PersistCounts>;
+    persist(context: ImportContext, records: readonly (KeyedImportRecord | ImportRecord)[]): Promise<PersistCounts>;
 }
 
 export interface ImportSummary {

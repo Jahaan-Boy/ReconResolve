@@ -40,8 +40,7 @@ function createEmptySummary(): ImportSummary {
 }
 
 function bumpCategory(summary: ImportSummary, category: string, by: number): void {
-    const safeCategory = /^[a-z0-9_.:-]{1,80}$/i.test(category) ? category : 'unsupported_record';
-    summary.rejectedCategories[safeCategory] = (summary.rejectedCategories[safeCategory] ?? 0) + by;
+    summary.rejectedCategories[category] = (summary.rejectedCategories[category] ?? 0) + by;
 }
 
 function* chunk<T>(items: readonly T[], size: number): Generator<T[]> {
@@ -50,14 +49,30 @@ function* chunk<T>(items: readonly T[], size: number): Generator<T[]> {
     }
 }
 
-function validateRequest(request: ImportRequest, batchSize: number): string {
+function validateRequest(request: ImportRequest, batchSize: number): {
+    merchantSlug: string;
+    startDate: string;
+    endDate: string;
+    from: Date;
+    to: Date;
+} {
     const merchantSlug = request.merchantSlug.trim();
     if (merchantSlug.length === 0 || merchantSlug.length > 128) {
         throw new ImportError('PAYPAL_SYNC_INVALID_ARGS', 'A valid --merchant-slug is required.');
     }
 
-    const fromMs = request.from instanceof Date ? request.from.getTime() : Number.NaN;
-    const toMs = request.to instanceof Date ? request.to.getTime() : Number.NaN;
+    const startDate = request.startDate ?? (request.from instanceof Date ? request.from.toISOString() : undefined);
+    const endDate = request.endDate ?? (request.to instanceof Date ? request.to.toISOString() : undefined);
+
+    if (!startDate || !endDate) {
+        throw new ImportError('PAYPAL_SYNC_INVALID_ARGS', 'The import range must contain valid dates with from < to.');
+    }
+
+    const fromDate = request.from instanceof Date ? request.from : new Date(startDate);
+    const toDate = request.to instanceof Date ? request.to : new Date(endDate);
+    const fromMs = fromDate.getTime();
+    const toMs = toDate.getTime();
+
     if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) {
         throw new ImportError('PAYPAL_SYNC_INVALID_ARGS', 'The import range must contain valid dates with from < to.');
     }
@@ -71,7 +86,7 @@ function validateRequest(request: ImportRequest, batchSize: number): string {
         );
     }
 
-    return merchantSlug;
+    return { merchantSlug, startDate, endDate, from: fromDate, to: toDate };
 }
 
 function validateFetchedPage(page: {
@@ -112,11 +127,10 @@ function validateAndKeyPage(
             throw error;
         }
 
-        // An unkeyable record is fatal: persisting it without a stable key would
-        // make reruns unsafe. Do not quietly count an identity failure as a skip.
+        const eventCode = record.providerEventCode ?? record.eventCode ?? '';
         const providerRecordKey = deriveProviderRecordKey({
             providerTxnId: record.providerTxnId,
-            providerEventCode: record.providerEventCode,
+            providerEventCode: eventCode,
             occurredAt: record.occurredAt,
             amountMinor: record.amountMinor,
             currency: record.currency,
@@ -135,12 +149,17 @@ export async function importPayPalTransactions(
     request: ImportRequest,
 ): Promise<ImportSummary> {
     const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
-    const merchantSlug = validateRequest(request, batchSize);
+    const validated = validateRequest(request, batchSize);
 
     // Resolve local tenant/connection before making any provider network request.
-    const context = await deps.resolveConnection(merchantSlug);
+    const context = await deps.resolveConnection(validated.merchantSlug);
     const summary = createEmptySummary();
-    const range: ImportRange = { from: request.from, to: request.to };
+    const range: ImportRange = {
+        startDate: validated.startDate,
+        endDate: validated.endDate,
+        from: validated.from,
+        to: validated.to,
+    };
 
     for await (const page of deps.source.fetchPages(range)) {
         validateFetchedPage(page);

@@ -15,9 +15,14 @@ function rejectedCategory(reason: string): string {
 export function createPayPalSource(adapter: PayPalAdapter): TransactionSource {
     return {
         async *fetchPages(range: ImportRange): AsyncGenerator<FetchedPage> {
+            const startDate = range.startDate ?? range.from?.toISOString();
+            const endDate = range.endDate ?? range.to?.toISOString();
+            if (!startDate || !endDate) {
+                throw new ImportError('PAYPAL_SYNC_INVALID_ARGS', 'Both startDate and endDate are required.');
+            }
             const result = await adapter.fetchTransactions({
-                startDate: range.from.toISOString(),
-                endDate: range.to.toISOString(),
+                startDate,
+                endDate,
             });
             if (
                 typeof result !== 'object' ||

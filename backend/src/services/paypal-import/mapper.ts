@@ -43,7 +43,7 @@ const Shape = z.object({
     type: z.enum(TYPES),
     status: z.enum(STATUSES),
     amountMinor: z.bigint(),
-    currency: z.string().trim().regex(/^[A-Za-z]{3}$/).transform((value) => value.toUpperCase()),
+    currency: z.string().regex(/^[A-Z]{3}$/),
     feeMinor: z.bigint().nullable(),
     occurredAt: z.date(),
     rawPayload: z.record(z.string(), z.unknown()),

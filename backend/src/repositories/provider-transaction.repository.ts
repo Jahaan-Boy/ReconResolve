@@ -3,6 +3,7 @@ import { ImportError } from '../services/paypal-import/errors';
 import { extractEventCode } from '../services/paypal-import/mapper';
 import type {
     ImportContext,
+    ImportRecord,
     KeyedImportRecord,
     PersistCounts,
     ProviderTransactionStore,
@@ -38,20 +39,23 @@ function sameJson(a: unknown, b: unknown): boolean {
     return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
 }
 
-function isRecordKeyConflict(error: unknown): boolean {
+function isConflict(error: unknown): boolean {
     if (typeof error !== 'object' || error === null) return false;
     const { code, meta } = error as { code?: unknown; meta?: { target?: unknown } };
     if (code !== 'P2002') return false;
     const target = meta?.target;
     const names = Array.isArray(target) ? target.map(String) : typeof target === 'string' ? [target] : [];
-    // Prisma may report field names or mapped column names / constraint names.
     return names.some((name) => {
         const cleaned = name.toLowerCase().replace(/_/g, '');
-        return cleaned.includes('providerrecordkey') || cleaned.includes('recordkey');
+        return (
+            cleaned.includes('providertxnid') ||
+            cleaned.includes('providerrecordkey') ||
+            cleaned.includes('recordkey')
+        );
     });
 }
 
-function assertSameIdentity(existing: ExistingRow, record: KeyedImportRecord): void {
+function assertSameIdentity(existing: ExistingRow, record: KeyedImportRecord | ImportRecord): void {
     const mismatched: string[] = [];
     if (String(existing.type) !== String(record.type)) mismatched.push('type');
     if (existing.amountMinor !== record.amountMinor) mismatched.push('amountMinor');
@@ -59,14 +63,15 @@ function assertSameIdentity(existing: ExistingRow, record: KeyedImportRecord): v
     if (existing.occurredAt.getTime() !== record.occurredAt.getTime()) mismatched.push('occurredAt');
 
     const existingEvent = extractEventCode(existing.rawPayload);
-    if (existingEvent !== null && existingEvent !== record.providerEventCode) {
-        mismatched.push('providerEventCode');
+    const recordEvent = record.eventCode ?? record.providerEventCode ?? extractEventCode(record.rawPayload);
+    if (existingEvent !== null && recordEvent !== undefined && recordEvent !== null && existingEvent !== recordEvent) {
+        mismatched.push('eventCode');
     }
 
     if (mismatched.length > 0) {
         throw new ImportError(
             'PAYPAL_RECORD_KEY_COLLISION',
-            'Two materially different provider records share one record key; import aborted.',
+            'Two materially different provider records share one transaction id; import aborted.',
             mismatched,
         );
     }
@@ -79,7 +84,7 @@ interface MutableChanges {
     rawPayload?: Prisma.InputJsonValue;
 }
 
-function diffMutable(existing: ExistingRow, record: KeyedImportRecord): MutableChanges {
+function diffMutable(existing: ExistingRow, record: KeyedImportRecord | ImportRecord): MutableChanges {
     const changes: MutableChanges = {};
     if (existing.status !== record.status) changes.status = record.status;
     if ((existing.feeMinor ?? null) !== record.feeMinor) changes.feeMinor = record.feeMinor;
@@ -95,14 +100,22 @@ function diffMutable(existing: ExistingRow, record: KeyedImportRecord): MutableC
 async function persistOne(
     db: StoreDb,
     context: ImportContext,
-    record: KeyedImportRecord,
+    record: KeyedImportRecord | ImportRecord,
 ): Promise<Outcome> {
-    const where = {
-        providerConnectionId_providerRecordKey: {
-            providerConnectionId: context.providerConnectionId,
-            providerRecordKey: record.providerRecordKey,
-        },
-    };
+    const keyedRecord = record as Partial<KeyedImportRecord>;
+    const where = keyedRecord.providerRecordKey
+        ? {
+            providerConnectionId_providerRecordKey: {
+                providerConnectionId: context.providerConnectionId,
+                providerRecordKey: keyedRecord.providerRecordKey,
+            },
+        }
+        : {
+            providerConnectionId_providerTxnId: {
+                providerConnectionId: context.providerConnectionId,
+                providerTxnId: record.providerTxnId,
+            },
+        };
 
     let existing: ExistingRow | null = await (db.providerTransaction.findUnique as Function)({ where });
 
@@ -110,11 +123,10 @@ async function persistOne(
         try {
             await (db.providerTransaction.create as Function)({
                 data: {
-                    // Tenant identity comes only from the trusted context.
                     merchantId: context.merchantId,
                     providerConnectionId: context.providerConnectionId,
                     providerTxnId: record.providerTxnId,
-                    providerRecordKey: record.providerRecordKey,
+                    ...(keyedRecord.providerRecordKey ? { providerRecordKey: keyedRecord.providerRecordKey } : {}),
                     providerOrderId: record.providerOrderId,
                     type: record.type,
                     status: record.status,
@@ -127,8 +139,7 @@ async function persistOne(
             });
             return 'inserted';
         } catch (error) {
-            if (!isRecordKeyConflict(error)) throw error;
-            // A concurrent writer inserted the same key first: fall through and verify it.
+            if (!isConflict(error)) throw error;
             existing = await (db.providerTransaction.findUnique as Function)({ where });
             if (!existing) throw error;
         }
