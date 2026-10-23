@@ -108,6 +108,7 @@ model Merchant {
   providerTransactions ProviderTransaction[]
   reconciliationRuns   ReconciliationRun[]
   exceptions           ReconciliationException[]
+  reconciliationMatches ReconciliationMatch[]
   webhookEvents        WebhookEvent[]
   outboxEvents         OutboxEvent[]
 
@@ -162,6 +163,7 @@ model ProviderTransaction {
   merchant           Merchant                  @relation(fields: [merchantId], references: [id])
   providerConnection ProviderConnection        @relation(fields: [providerConnectionId], references: [id])
   exceptions         ReconciliationException[]
+  matches            ReconciliationMatch[]
 
   @@unique([providerConnectionId, providerRecordKey])
   @@index([providerConnectionId, providerTxnId])
@@ -188,6 +190,7 @@ model MerchantOrder {
   // Relations
   merchant   Merchant                  @relation(fields: [merchantId], references: [id])
   exceptions ReconciliationException[]
+  matches    ReconciliationMatch[]
 
   @@unique([merchantId, externalOrderId])
   @@index([merchantId, orderedAt])
@@ -198,20 +201,30 @@ model MerchantOrder {
 // ReconciliationRun
 
 model ReconciliationRun {
-  id          String                  @id @default(uuid()) @db.Uuid
-  merchantId  String                  @map("merchant_id") @db.Uuid
-  status      ReconciliationRunStatus @default(PENDING)
-  windowStart DateTime                @map("window_start")
-  windowEnd   DateTime                @map("window_end")
-  startedAt   DateTime?               @map("started_at")
-  completedAt DateTime?               @map("completed_at")
-  createdAt   DateTime                @default(now()) @map("created_at")
-  updatedAt   DateTime                @updatedAt @map("updated_at")
+  id              String                  @id @default(uuid()) @db.Uuid
+  merchantId      String                  @map("merchant_id") @db.Uuid
+  idempotencyKey  String?                 @map("idempotency_key") @db.VarChar(128)
+  rulesetVersion  String                  @default("v1") @map("ruleset_version") @db.VarChar(32)
+  status          ReconciliationRunStatus @default(PENDING)
+  windowStart     DateTime                @map("window_start")
+  windowEnd       DateTime                @map("window_end")
+  totalConsidered Int                     @default(0) @map("total_considered")
+  matchedCount    Int                     @default(0) @map("matched_count")
+  unmatchedCount  Int                     @default(0) @map("unmatched_count")
+  ambiguousCount  Int                     @default(0) @map("ambiguous_count")
+  excludedCount   Int                     @default(0) @map("excluded_count")
+  failureReason   String?                 @map("failure_reason") @db.VarChar(1000)
+  startedAt       DateTime?               @map("started_at")
+  completedAt     DateTime?               @map("completed_at")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
 
   // Relations
   merchant   Merchant                  @relation(fields: [merchantId], references: [id])
   exceptions ReconciliationException[]
+  matches    ReconciliationMatch[]
 
+  @@unique([merchantId, idempotencyKey])
   @@index([merchantId, createdAt])
   @@index([merchantId, status])
   @@map("reconciliation_runs")
@@ -240,9 +253,38 @@ model ReconciliationException {
   providerTransaction ProviderTransaction? @relation(fields: [providerTransactionId], references: [id])
   merchantOrder       MerchantOrder?       @relation(fields: [merchantOrderId], references: [id])
 
+  @@unique([reconciliationRunId, providerTransactionId, type])
   @@index([merchantId, status, createdAt])
   @@index([merchantId, reconciliationRunId])
   @@map("reconciliation_exceptions")
+}
+
+// ---------------------------------------------------------------------------
+// ReconciliationMatch
+// ---------------------------------------------------------------------------
+
+model ReconciliationMatch {
+  id                    String              @id @default(uuid()) @db.Uuid
+  merchantId            String              @map("merchant_id") @db.Uuid
+  reconciliationRunId   String              @map("reconciliation_run_id") @db.Uuid
+  providerTransactionId String              @map("provider_transaction_id") @db.Uuid
+  merchantOrderId       String              @map("merchant_order_id") @db.Uuid
+  ruleCode              String              @map("rule_code") @db.VarChar(64)
+  rulesetVersion        String              @default("v1") @map("ruleset_version") @db.VarChar(32)
+  evidence              Json
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  merchant            Merchant            @relation(fields: [merchantId], references: [id])
+  reconciliationRun   ReconciliationRun   @relation(fields: [reconciliationRunId], references: [id])
+  providerTransaction ProviderTransaction @relation(fields: [providerTransactionId], references: [id])
+  merchantOrder       MerchantOrder       @relation(fields: [merchantOrderId], references: [id])
+
+  @@unique([reconciliationRunId, providerTransactionId])
+  @@index([merchantId, createdAt])
+  @@index([merchantOrderId])
+  @@map("reconciliation_matches")
 }
 
 // ---------------------------------------------------------------------------

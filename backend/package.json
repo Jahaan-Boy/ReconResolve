@@ -17,6 +17,7 @@
     "paypal:sync": "tsx src/cli/paypal-sync.ts",
     "outbox:worker": "tsx src/workers/run-worker.ts",
     "outbox:worker:start": "node dist/workers/run-worker.js",
+    "recon:run": "tsx src/cli/recon-run.ts",
     "test:integration": "vitest run test/integration"
   },
   "engines": {
