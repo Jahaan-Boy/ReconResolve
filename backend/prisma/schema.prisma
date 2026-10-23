@@ -86,6 +86,7 @@ enum WebhookProcessingStatus {
 
 enum OutboxStatus {
   PENDING
+  PROCESSING
   DISPATCHED
   FAILED
 }
@@ -287,6 +288,9 @@ model OutboxEvent {
   payload       Json
   status        OutboxStatus @default(PENDING)
   attemptCount  Int          @default(0) @map("attempt_count")
+  claimToken    String?      @map("claim_token") @db.VarChar(128)
+  lockedAt      DateTime?    @map("locked_at") @db.Timestamptz(6)
+  lastError     String?      @map("last_error") @db.VarChar(1000)
   availableAt   DateTime     @default(now()) @map("available_at") @db.Timestamptz(6)
   dispatchedAt  DateTime?    @map("dispatched_at") @db.Timestamptz(6)
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -296,7 +300,7 @@ model OutboxEvent {
   merchant Merchant @relation(fields: [merchantId], references: [id])
 
   @@unique([merchantId, aggregateType, aggregateId, eventType])
-  @@index([status, availableAt])
+  @@index([status, availableAt, lockedAt])
   @@index([merchantId, createdAt])
   @@map("outbox_events")
 }
