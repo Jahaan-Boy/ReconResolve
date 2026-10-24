@@ -111,6 +111,7 @@ model Merchant {
   reconciliationMatches ReconciliationMatch[]
   webhookEvents        WebhookEvent[]
   outboxEvents         OutboxEvent[]
+  exceptionAuditEvents ExceptionAuditEvent[]
 
   @@map("merchants")
 }
@@ -244,14 +245,16 @@ model ReconciliationException {
   details               Json?
   resolutionNote        String?         @map("resolution_note")
   resolvedAt            DateTime?       @map("resolved_at")
+  version               Int             @default(1) @map("version")
   createdAt             DateTime        @default(now()) @map("created_at")
   updatedAt             DateTime        @updatedAt @map("updated_at")
 
   // Relations
-  merchant            Merchant             @relation(fields: [merchantId], references: [id])
-  reconciliationRun   ReconciliationRun?   @relation(fields: [reconciliationRunId], references: [id])
-  providerTransaction ProviderTransaction? @relation(fields: [providerTransactionId], references: [id])
-  merchantOrder       MerchantOrder?       @relation(fields: [merchantOrderId], references: [id])
+  merchant            Merchant              @relation(fields: [merchantId], references: [id])
+  reconciliationRun   ReconciliationRun?    @relation(fields: [reconciliationRunId], references: [id])
+  providerTransaction ProviderTransaction?  @relation(fields: [providerTransactionId], references: [id])
+  merchantOrder       MerchantOrder?        @relation(fields: [merchantOrderId], references: [id])
+  auditEvents         ExceptionAuditEvent[]
 
   @@unique([reconciliationRunId, providerTransactionId, type])
   @@index([merchantId, status, createdAt])
@@ -346,3 +349,30 @@ model OutboxEvent {
   @@index([merchantId, createdAt])
   @@map("outbox_events")
 }
+
+// ---------------------------------------------------------------------------
+// ExceptionAuditEvent
+// ---------------------------------------------------------------------------
+
+model ExceptionAuditEvent {
+  id          String          @id @default(uuid()) @db.Uuid
+  merchantId  String          @map("merchant_id") @db.Uuid
+  exceptionId String          @map("exception_id") @db.Uuid
+  actorId     String          @map("actor_id") @db.VarChar(128)
+  actorType   String          @default("OPERATOR") @map("actor_type") @db.VarChar(32)
+  action      String          @map("action") @db.VarChar(32)
+  fromStatus  ExceptionStatus @map("from_status")
+  toStatus    ExceptionStatus @map("to_status")
+  reason      String?         @map("reason") @db.VarChar(1000)
+  metadata    Json?           @map("metadata")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  merchant  Merchant                @relation(fields: [merchantId], references: [id])
+  exception ReconciliationException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+
+  @@index([exceptionId, createdAt])
+  @@index([merchantId, createdAt])
+  @@map("exception_audit_events")
+}
+
