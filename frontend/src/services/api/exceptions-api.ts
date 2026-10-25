@@ -1,0 +1,151 @@
+import {
+    ApiClientError,
+    ConcurrencyConflictError,
+    type ExceptionDetail,
+    type ExceptionsApiClient,
+    type ListExceptionsFilter,
+    type ListExceptionsResult,
+    type OperatorContext,
+    type ResolveExceptionInput,
+    type ReopenExceptionInput,
+    type DismissExceptionInput,
+    type InvestigateExceptionInput,
+} from './types';
+
+export class HttpExceptionsApiClient implements ExceptionsApiClient {
+    private readonly baseUrl: string;
+
+    constructor(baseUrl = '') {
+        this.baseUrl = baseUrl;
+    }
+
+    private buildHeaders(ctx: OperatorContext): HeadersInit {
+        const correlationId = ctx.correlationId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `corr-${Date.now()}`);
+        return {
+            'Content-Type': 'application/json',
+            'x-operator-id': ctx.operatorId,
+            'x-operator-role': ctx.role,
+            'x-correlation-id': correlationId,
+            'x-authorized-merchants': (ctx.authorizedMerchants ?? ['*']).join(','),
+        };
+    }
+
+    private async handleResponse<T>(res: Response): Promise<T> {
+        if (!res.ok) {
+            let errorData: { error?: string; message?: string; details?: unknown } | null = null;
+            try {
+                errorData = (await res.json()) as { error?: string; message?: string; details?: unknown };
+            } catch {
+                // Ignore json parse error
+            }
+
+            const code = errorData?.error || `HTTP_${res.status}`;
+            const message = errorData?.message || res.statusText || 'Request failed';
+            const details = errorData?.details;
+
+            if (res.status === 409 && (code === 'CONCURRENCY_CONFLICT' || code.includes('CONFLICT'))) {
+                throw new ConcurrencyConflictError(message, details);
+            }
+
+            throw new ApiClientError(code, message, res.status, details);
+        }
+
+        return (await res.json()) as T;
+    }
+
+    async listExceptions(merchantId: string, filter?: ListExceptionsFilter): Promise<ListExceptionsResult> {
+        const params = new URLSearchParams();
+        if (filter?.status) params.set('status', filter.status);
+        if (filter?.type) params.set('type', filter.type);
+        if (filter?.reconciliationRunId) params.set('reconciliationRunId', filter.reconciliationRunId);
+        if (filter?.providerTransactionId) params.set('providerTransactionId', filter.providerTransactionId);
+        if (filter?.merchantOrderId) params.set('merchantOrderId', filter.merchantOrderId);
+        if (filter?.createdFrom) params.set('createdFrom', filter.createdFrom);
+        if (filter?.createdTo) params.set('createdTo', filter.createdTo);
+        if (filter?.cursor) params.set('cursor', filter.cursor);
+        if (filter?.limit) params.set('limit', String(filter.limit));
+
+        const queryString = params.toString();
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions${queryString ? `?${queryString}` : ''}`;
+
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+        });
+
+        return this.handleResponse<ListExceptionsResult>(res);
+    }
+
+    async getException(merchantId: string, exceptionId: string): Promise<ExceptionDetail> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}`;
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+        });
+        return this.handleResponse<ExceptionDetail>(res);
+    }
+
+    async resolve(
+        merchantId: string,
+        exceptionId: string,
+        input: ResolveExceptionInput,
+        ctx: OperatorContext,
+    ): Promise<ExceptionDetail> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/resolve`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: this.buildHeaders(ctx),
+            body: JSON.stringify(input),
+        });
+        return this.handleResponse<ExceptionDetail>(res);
+    }
+
+    async reopen(
+        merchantId: string,
+        exceptionId: string,
+        input: ReopenExceptionInput,
+        ctx: OperatorContext,
+    ): Promise<ExceptionDetail> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/reopen`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: this.buildHeaders(ctx),
+            body: JSON.stringify(input),
+        });
+        return this.handleResponse<ExceptionDetail>(res);
+    }
+
+    async dismiss(
+        merchantId: string,
+        exceptionId: string,
+        input: DismissExceptionInput,
+        ctx: OperatorContext,
+    ): Promise<ExceptionDetail> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/dismiss`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: this.buildHeaders(ctx),
+            body: JSON.stringify(input),
+        });
+        return this.handleResponse<ExceptionDetail>(res);
+    }
+
+    async investigate(
+        merchantId: string,
+        exceptionId: string,
+        input: InvestigateExceptionInput,
+        ctx: OperatorContext,
+    ): Promise<ExceptionDetail> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/investigate`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: this.buildHeaders(ctx),
+            body: JSON.stringify(input),
+        });
+        return this.handleResponse<ExceptionDetail>(res);
+    }
+}

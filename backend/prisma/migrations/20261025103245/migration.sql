@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "reconciliation_exceptions_reconciliation_run_id_provider_tra_ke" RENAME TO "reconciliation_exceptions_reconciliation_run_id_provider_tr_key";

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, Shield, X } from 'lucide-react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { SITE } from '@/config/site';
 import { Logo } from '@/components/brand/Logo';
@@ -14,9 +14,10 @@ export interface NavItem {
 
 interface HeaderProps {
     links: readonly NavItem[];
+    onNavigateConsole?: () => void;
 }
 
-export function Header({ links }: HeaderProps) {
+export function Header({ links, onNavigateConsole }: HeaderProps) {
     const [open, setOpen] = useState(false);
     const menuId = useId();
     const { scrollYProgress } = useScroll();
@@ -55,7 +56,17 @@ export function Header({ links }: HeaderProps) {
                     ))}
                 </nav>
 
-                <div className="hidden md:block">
+                <div className="hidden md:flex items-center gap-3">
+                    {onNavigateConsole && (
+                        <button
+                            type="button"
+                            onClick={onNavigateConsole}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-steel-200 bg-white px-3 py-2 text-xs font-semibold text-steel-800 shadow-2xs hover:bg-steel-50 hover:text-accent-600 transition-colors cursor-pointer"
+                        >
+                            <Shield className="size-3.5 text-accent-600" />
+                            <span>Operator Console</span>
+                        </button>
+                    )}
                     <ButtonLink href={SITE.contactHref}>Request a demo</ButtonLink>
                 </div>
 
@@ -88,7 +99,20 @@ export function Header({ links }: HeaderProps) {
                                 {link.label}
                             </a>
                         ))}
-                        <ButtonLink href={SITE.contactHref} className="mt-3" onClick={() => setOpen(false)}>
+                        {onNavigateConsole && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOpen(false);
+                                    onNavigateConsole();
+                                }}
+                                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-accent-700 bg-accent-50/80 hover:bg-accent-100/80 cursor-pointer text-left"
+                            >
+                                <Shield className="size-4 text-accent-600" />
+                                <span>Operator Console</span>
+                            </button>
+                        )}
+                        <ButtonLink href={SITE.contactHref} className="mt-2" onClick={() => setOpen(false)}>
                             Request a demo
                         </ButtonLink>
                     </Container>

@@ -29,6 +29,43 @@
     --color-accent-700: #1b4fb8;
     --color-accent-800: #1c4494;
     --color-accent-900: #1c3b75;
+
+    /* Modern Fintech Design System Tokens */
+    --color-fin-brand: #2457d6;
+    --color-fin-brand-hover: #1d46b3;
+    --color-fin-bg: #f5f7fb;
+    --color-fin-surface: #ffffff;
+    --color-fin-text-primary: #172033;
+    --color-fin-text-secondary: #667085;
+    --color-fin-border: #e4e8f0;
+    --color-fin-muted: #f0f3f8;
+    --color-fin-success: #17805d;
+    --color-fin-success-bg: #e8f6ef;
+    --color-fin-warning: #a86408;
+    --color-fin-warning-bg: #fff4df;
+    --color-fin-error: #c83c47;
+    --color-fin-error-bg: #fceaec;
+    --color-fin-info: #2457d6;
+    --color-fin-info-bg: #eaf0ff;
+}
+
+:root {
+    --fin-brand: #2457d6;
+    --fin-brand-hover: #1d46b3;
+    --fin-bg: #f5f7fb;
+    --fin-surface: #ffffff;
+    --fin-text-primary: #172033;
+    --fin-text-secondary: #667085;
+    --fin-border: #e4e8f0;
+    --fin-muted: #f0f3f8;
+    --fin-success: #17805d;
+    --fin-success-bg: #e8f6ef;
+    --fin-warning: #a86408;
+    --fin-warning-bg: #fff4df;
+    --fin-error: #c83c47;
+    --fin-error-bg: #fceaec;
+    --fin-info: #2457d6;
+    --fin-info-bg: #eaf0ff;
 }
 
 @theme {

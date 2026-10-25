@@ -9,7 +9,11 @@ import { Hero } from '@/features/landing/sections/Hero';
 import { HowItWorks } from '@/features/landing/sections/HowItWorks';
 import { Problem } from '@/features/landing/sections/Problem';
 
-export function LandingPage() {
+interface LandingPageProps {
+    onNavigateConsole?: () => void;
+}
+
+export function LandingPage({ onNavigateConsole }: LandingPageProps = {}) {
     return (
         <>
             <a
@@ -18,7 +22,7 @@ export function LandingPage() {
             >
                 Skip to content
             </a>
-            <Header links={NAV_LINKS} />
+            <Header links={NAV_LINKS} onNavigateConsole={onNavigateConsole} />
             <main id="main">
                 <Hero />
                 <Marquee items={MARQUEE_ITEMS} />
