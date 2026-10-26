@@ -11,6 +11,7 @@ import {
     type DismissExceptionInput,
     type InvestigateExceptionInput,
 } from './types';
+import { notifyUnauthorized } from './auth-api';
 
 export class HttpExceptionsApiClient implements ExceptionsApiClient {
     private readonly baseUrl: string;
@@ -43,6 +44,10 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
             const message = errorData?.message || res.statusText || 'Request failed';
             const details = errorData?.details;
 
+            if (res.status === 401) {
+                notifyUnauthorized();
+            }
+
             if (res.status === 409 && (code === 'CONCURRENCY_CONFLICT' || code.includes('CONFLICT'))) {
                 throw new ConcurrencyConflictError(message, details);
             }
@@ -74,6 +79,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
             headers: {
                 Accept: 'application/json',
             },
+            credentials: 'same-origin',
         });
 
         return this.handleResponse<ListExceptionsResult>(res);
@@ -86,6 +92,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
             headers: {
                 Accept: 'application/json',
             },
+            credentials: 'same-origin',
         });
         return this.handleResponse<ExceptionDetail>(res);
     }
@@ -100,6 +107,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
+            credentials: 'same-origin',
             body: JSON.stringify(input),
         });
         return this.handleResponse<ExceptionDetail>(res);
@@ -115,6 +123,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
+            credentials: 'same-origin',
             body: JSON.stringify(input),
         });
         return this.handleResponse<ExceptionDetail>(res);
@@ -130,6 +139,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
+            credentials: 'same-origin',
             body: JSON.stringify(input),
         });
         return this.handleResponse<ExceptionDetail>(res);
@@ -145,6 +155,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
+            credentials: 'same-origin',
             body: JSON.stringify(input),
         });
         return this.handleResponse<ExceptionDetail>(res);

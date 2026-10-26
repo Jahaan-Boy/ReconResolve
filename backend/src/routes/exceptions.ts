@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type Response, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { getDB } from '../db/postgres';
 import { createExceptionRepository } from '../repositories/exception.repository';
@@ -8,10 +8,19 @@ import {
     type ExceptionLifecycleService,
 } from '../services/exception-management/exception-lifecycle.service';
 import type { OperatorContext } from '../services/exception-management/types';
+import {
+    authenticate,
+    resolveMerchantContext,
+    requireRole,
+    type AuthMiddlewareDeps,
+} from '../auth/middleware';
 
 export interface ExceptionRouterDeps {
     service?: ExceptionLifecycleService;
     resolveOperatorContext?: (req: Request) => OperatorContext;
+    authGuard?: RequestHandler;
+    merchantGuard?: RequestHandler;
+    authDeps?: AuthMiddlewareDeps;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -75,21 +84,23 @@ const InvestigateBodySchema = z.object({
 });
 
 function defaultResolveOperatorContext(req: Request): OperatorContext {
-    const rawActorId = req.headers['x-operator-id'];
-    const actorId = rawActorId !== undefined ? String(rawActorId).trim() : 'system-operator';
-    const role = (req.headers['x-operator-role'] as string) || 'OPERATOR';
-    const authMerchantsHeader = req.headers['x-authorized-merchants'] as string;
-    const authorizedMerchantIds = authMerchantsHeader
-        ? authMerchantsHeader.split(',').map((s) => s.trim())
-        : ['*'];
-    const correlationId = (req.headers['x-correlation-id'] as string) || undefined;
+    if (req.auth) {
+        return {
+            actorId: req.auth.user.id,
+            actorType: 'OPERATOR',
+            roles: [req.auth.membership.role],
+            authorizedMerchantIds: [req.auth.merchant.id],
+            correlationId: (req.headers['x-correlation-id'] as string) || undefined,
+        };
+    }
 
+    const actorId = req.authenticatedUser?.id || 'system-operator';
     return {
         actorId,
         actorType: 'OPERATOR',
-        roles: [role],
-        authorizedMerchantIds,
-        correlationId,
+        roles: ['OPERATOR'],
+        authorizedMerchantIds: req.params.merchantId ? [req.params.merchantId] : [],
+        correlationId: (req.headers['x-correlation-id'] as string) || undefined,
     };
 }
 
@@ -97,6 +108,13 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
     const router = Router({ mergeParams: true });
     const service = deps.service ?? createExceptionLifecycleService(createExceptionRepository(getDB));
     const resolveContext = deps.resolveOperatorContext ?? defaultResolveOperatorContext;
+
+    // Server-enforced authentication and tenant context isolation
+    const authGuard = deps.authGuard ?? authenticate(deps.authDeps);
+    const merchantGuard = deps.merchantGuard ?? resolveMerchantContext(deps.authDeps);
+
+    router.use(authGuard);
+    router.use(merchantGuard);
 
     function handleRouteError(res: Response, err: unknown): void {
         if (err instanceof z.ZodError) {
@@ -168,7 +186,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
     });
 
     // 3. Resolve Exception
-    router.post('/:exceptionId/resolve', async (req: Request, res: Response): Promise<void> => {
+    router.post('/:exceptionId/resolve', requireRole(['OWNER', 'ADMIN', 'ANALYST']), async (req: Request, res: Response): Promise<void> => {
         try {
             const { merchantId, exceptionId } = req.params;
             validateMerchantParam(merchantId);
@@ -185,7 +203,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
     });
 
     // 4. Reopen Exception
-    router.post('/:exceptionId/reopen', async (req: Request, res: Response): Promise<void> => {
+    router.post('/:exceptionId/reopen', requireRole(['OWNER', 'ADMIN', 'ANALYST']), async (req: Request, res: Response): Promise<void> => {
         try {
             const { merchantId, exceptionId } = req.params;
             validateMerchantParam(merchantId);
@@ -202,7 +220,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
     });
 
     // 5. Dismiss Exception
-    router.post('/:exceptionId/dismiss', async (req: Request, res: Response): Promise<void> => {
+    router.post('/:exceptionId/dismiss', requireRole(['OWNER', 'ADMIN', 'ANALYST']), async (req: Request, res: Response): Promise<void> => {
         try {
             const { merchantId, exceptionId } = req.params;
             validateMerchantParam(merchantId);
@@ -219,7 +237,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
     });
 
     // 6. Investigate Exception
-    router.post('/:exceptionId/investigate', async (req: Request, res: Response): Promise<void> => {
+    router.post('/:exceptionId/investigate', requireRole(['OWNER', 'ADMIN', 'ANALYST']), async (req: Request, res: Response): Promise<void> => {
         try {
             const { merchantId, exceptionId } = req.params;
             validateMerchantParam(merchantId);

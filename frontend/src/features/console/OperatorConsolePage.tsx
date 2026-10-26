@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -9,16 +9,18 @@ import { ConsoleAppHeader } from './ConsoleAppHeader';
 import { ExceptionQueue } from './ExceptionQueue';
 import { ExceptionInspector } from './ExceptionInspector';
 import { ExceptionActionDialog } from './ExceptionActionDialog';
+import { AuthModal } from '@/features/auth/AuthModal';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
-// import {
-//     authApiClient,
-//     subscribeUnauthorized,
-//     type UserProfile,
-//     type PermittedMerchant,
-//     type AuthSessionData,
-// } from '@/services/api/auth-api';
+import {
+    authApiClient,
+    subscribeUnauthorized,
+    type UserProfile,
+    type PermittedMerchant,
+    type AuthSessionData,
+} from '@/services/api/auth-api';
 import { DEFAULT_MERCHANT_ID, SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
 import {
+    ApiClientError,
     ConcurrencyConflictError,
     type ExceptionAction,
     type ExceptionDetail,
@@ -43,11 +45,20 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Current merchant context
     const [merchantId, setMerchantId] = useState<string>(DEFAULT_MERCHANT_ID);
 
+    // Generation/Request tracking to prevent cross-tenant async race conditions
+    const queueRequestIdRef = useRef(0);
+    const countsRequestIdRef = useRef(0);
+    const detailRequestIdRef = useRef(0);
+
     // Operator identity
+    const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+    const [permittedMerchants, setPermittedMerchants] = useState<PermittedMerchant[]>([]);
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
     const [operatorContext, setOperatorContext] = useState<OperatorContext>({
         operatorId: 'operator-sarah',
-        role: 'OPERATOR',
-        authorizedMerchants: ['*'],
+        role: 'OWNER',
+        authorizedMerchants: [DEFAULT_MERCHANT_ID],
     });
 
     // API Source tracking
@@ -103,11 +114,83 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         });
     }, []);
 
+    // Initial session bootstrap on mount
+    useEffect(() => {
+        let isMounted = true;
+        authApiClient.fetchMe().then((data) => {
+            if (!isMounted) return;
+            if (data) {
+                setCurrentUser(data.user);
+                setPermittedMerchants(data.merchants);
+                if (data.activeMerchant) {
+                    setMerchantId(data.activeMerchant.id);
+                    setOperatorContext({
+                        operatorId: data.user.id,
+                        role: data.activeMerchant.role,
+                        authorizedMerchants: [data.activeMerchant.id],
+                    });
+                }
+            }
+        });
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    // Listen to 401 unauthorized notifications
+    useEffect(() => {
+        return subscribeUnauthorized(() => {
+            setCurrentUser(null);
+            setIsAuthModalOpen(true);
+            addToast('warning', 'Session expired or unauthenticated. Please sign in.');
+        });
+    }, [addToast]);
+
+    const handleLoginSuccess = (session: AuthSessionData) => {
+        setCurrentUser(session.user);
+        setPermittedMerchants(session.merchants);
+        const active = session.activeMerchant || session.merchants[0];
+        if (active) {
+            setMerchantId(active.id);
+            setOperatorContext({
+                operatorId: session.user.id,
+                role: active.role,
+                authorizedMerchants: [active.id],
+            });
+        }
+        // Flush previous caches and reload
+        setSelectedId(null);
+        setDetail(null);
+        setCursorHistory([]);
+        setFilters({ limit: 20 });
+        setIsAuthModalOpen(false);
+        addToast('success', `Signed in as ${session.user.fullName} (${active?.role || 'OPERATOR'})`);
+    };
+
+    const handleLogout = async () => {
+        // Invalidate in-flight requests
+        queueRequestIdRef.current++;
+        countsRequestIdRef.current++;
+        detailRequestIdRef.current++;
+
+        await authApiClient.logout();
+        setCurrentUser(null);
+        setPermittedMerchants([]);
+        setItems([]);
+        setStatusCounts(undefined);
+        setDetail(null);
+        setSelectedId(null);
+        setIsAuthModalOpen(true);
+        addToast('info', 'Logged out successfully');
+    };
+
     // Fetch global status counts across all exceptions for current merchant
     const loadStatusCounts = useCallback(
         async (targetMerchantId: string) => {
+            const reqId = ++countsRequestIdRef.current;
             try {
                 const res = await adaptiveApiClient.listExceptions(targetMerchantId, { limit: 100 });
+                if (reqId !== countsRequestIdRef.current) return;
                 const counts: Record<ExceptionStatus, number> = {
                     OPEN: 0,
                     INVESTIGATING: 0,
@@ -130,10 +213,12 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Fetch queue exceptions
     const loadExceptions = useCallback(
         async (targetMerchantId: string, activeFilters: ListExceptionsFilter) => {
+            const reqId = ++queueRequestIdRef.current;
             setLoadingQueue(true);
             setQueueError(null);
             try {
                 const res = await adaptiveApiClient.listExceptions(targetMerchantId, activeFilters);
+                if (reqId !== queueRequestIdRef.current) return;
                 setItems(res.items);
                 setPagination(res.pagination);
 
@@ -165,11 +250,14 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                     setDetail(null);
                 }
             } catch (err: unknown) {
+                if (reqId !== queueRequestIdRef.current) return;
                 const message = err instanceof Error ? err.message : 'Failed to load exceptions queue from server';
                 setQueueError(message);
                 addToast('error', `Error loading queue: ${message}`);
             } finally {
-                setLoadingQueue(false);
+                if (reqId === queueRequestIdRef.current) {
+                    setLoadingQueue(false);
+                }
             }
         },
         [addToast],
@@ -178,15 +266,20 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Fetch single exception detail
     const loadDetail = useCallback(
         async (targetMerchantId: string, exceptionId: string) => {
+            const reqId = ++detailRequestIdRef.current;
             setLoadingDetail(true);
             try {
                 const data = await adaptiveApiClient.getException(targetMerchantId, exceptionId);
+                if (reqId !== detailRequestIdRef.current) return;
                 setDetail(data);
             } catch (err: unknown) {
+                if (reqId !== detailRequestIdRef.current) return;
                 const message = err instanceof Error ? err.message : 'Failed to load details';
                 addToast('error', `Failed to load details for ${exceptionId}: ${message}`);
             } finally {
-                setLoadingDetail(false);
+                if (reqId === detailRequestIdRef.current) {
+                    setLoadingDetail(false);
+                }
             }
         },
         [addToast],
@@ -235,7 +328,15 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Merchant Switch Handler: clears selections and resets pagination
     const handleSelectMerchant = (newMerchantId: string) => {
         if (newMerchantId === merchantId) return;
+        // Invalidate in-flight requests from the previous tenant context
+        queueRequestIdRef.current++;
+        countsRequestIdRef.current++;
+        detailRequestIdRef.current++;
+
+        // Immediately isolate tenant state by clearing UI items and selection
         setMerchantId(newMerchantId);
+        setItems([]);
+        setStatusCounts(undefined);
         setSelectedId(null);
         setDetail(null);
         setCursorHistory([]);
@@ -244,7 +345,17 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
             cursor: undefined,
         }));
         setShowMobileDetail(false);
-        addToast('info', `Switched active tenant to ${newMerchantId}`);
+
+        const found = permittedMerchants.find((m) => m.id === newMerchantId);
+        if (found) {
+            setOperatorContext((prev) => ({
+                ...prev,
+                role: found.role,
+                authorizedMerchants: [found.id],
+            }));
+        }
+
+        addToast('info', `Switched active tenant to ${found?.name || newMerchantId}`);
         loadStatusCounts(newMerchantId);
     };
 
@@ -379,6 +490,15 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                     addToast('error', 'Failed to reload latest record state after conflict.');
                 }
             } else {
+                const isForbidden =
+                    (err instanceof ApiClientError && err.statusCode === 403) ||
+                    (typeof err === 'object' && err !== null && 'statusCode' in err && (err as { statusCode: number }).statusCode === 403) ||
+                    (typeof err === 'object' && err !== null && 'status' in err && (err as { status: number }).status === 403);
+                if (isForbidden) {
+                    addToast('error', 'Permission Denied: Read-only viewers cannot modify exception state');
+                    setActiveAction(null);
+                    return;
+                }
                 const message = err instanceof Error ? err.message : 'Failed to complete action';
                 addToast('error', message);
             }
@@ -405,6 +525,10 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 onSelectMerchant={handleSelectMerchant}
                 operatorContext={operatorContext}
                 onUpdateOperatorContext={setOperatorContext}
+                currentUser={currentUser}
+                permittedMerchants={permittedMerchants}
+                onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                onLogout={handleLogout}
                 apiSource={apiSource}
                 onToggleApiSource={(src) => adaptiveApiClient.setSource(src)}
                 onNavigateLanding={onNavigateLanding}
@@ -470,6 +594,13 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 onReloadConflict={
                     detail ? () => loadDetail(merchantId, detail.id) : undefined
                 }
+            />
+
+            {/* Authentication Modal */}
+            <AuthModal
+                isOpen={isAuthModalOpen}
+                onClose={() => setIsAuthModalOpen(false)}
+                onLoginSuccess={handleLoginSuccess}
             />
 
             {/* Toast Container */}

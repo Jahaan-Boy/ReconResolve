@@ -3,20 +3,27 @@ import {
     ArrowLeft,
     Building2,
     ChevronDown,
-    Shield,
     User,
     Check,
+    LogOut,
+    LogIn,
+    Sparkles,
 } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
 import type { OperatorContext } from '@/services/api/types';
 import type { ApiSource } from '@/services/api/api-client';
+import type { UserProfile, PermittedMerchant } from '@/services/api/auth-api';
 
 interface ConsoleAppHeaderProps {
     currentMerchantId: string;
     onSelectMerchant: (merchantId: string) => void;
     operatorContext: OperatorContext;
-    onUpdateOperatorContext: (ctx: OperatorContext) => void;
+    onUpdateOperatorContext?: (ctx: OperatorContext) => void;
+    currentUser: UserProfile | null;
+    permittedMerchants: PermittedMerchant[];
+    onOpenAuthModal: () => void;
+    onLogout: () => void;
     apiSource: ApiSource;
     onToggleApiSource: (source: ApiSource) => void;
     onNavigateLanding: () => void;
@@ -26,7 +33,10 @@ export function ConsoleAppHeader({
     currentMerchantId,
     onSelectMerchant,
     operatorContext,
-    onUpdateOperatorContext,
+    currentUser,
+    permittedMerchants,
+    onOpenAuthModal,
+    onLogout,
     apiSource,
     onToggleApiSource,
     onNavigateLanding,
@@ -35,10 +45,29 @@ export function ConsoleAppHeader({
     const [operatorMenuOpen, setOperatorMenuOpen] = useState(false);
     const [customMerchantInput, setCustomMerchantInput] = useState('');
 
-    const currentMerchant = SEEDED_MERCHANTS.find((m) => m.id === currentMerchantId) || {
-        id: currentMerchantId,
-        name: 'Custom Tenant',
-        slug: 'custom',
+    // Active merchant resolution (from permitted list, seeded fallback, or custom ID)
+    const currentMerchant =
+        permittedMerchants.find((m) => m.id === currentMerchantId) ||
+        SEEDED_MERCHANTS.find((m) => m.id === currentMerchantId) || {
+            id: currentMerchantId,
+            name: 'Custom Tenant',
+            slug: 'custom',
+            role: operatorContext.role,
+        };
+
+    const roleColor = (role: string) => {
+        switch (role.toUpperCase()) {
+            case 'OWNER':
+            case 'ADMIN':
+                return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            case 'ANALYST':
+            case 'OPERATOR':
+                return 'bg-blue-50 text-blue-700 border-blue-200';
+            case 'VIEWER':
+                return 'bg-amber-50 text-amber-700 border-amber-200';
+            default:
+                return 'bg-slate-100 text-slate-700 border-slate-200';
+        }
     };
 
     return (
@@ -106,12 +135,15 @@ export function ConsoleAppHeader({
                                     className="fixed inset-0 z-40"
                                     onClick={() => setMerchantMenuOpen(false)}
                                 />
-                                <div className="absolute right-0 mt-1.5 w-72 rounded-xl border border-slate-200 bg-white p-2 shadow-lg z-50 text-xs">
-                                    <div className="px-2 py-1 font-semibold text-slate-500 uppercase tracking-wider text-[10px]">
-                                        Select Merchant Tenant
+                                <div className="absolute right-0 mt-1.5 w-76 rounded-xl border border-slate-200 bg-white p-2 shadow-lg z-50 text-xs">
+                                    <div className="px-2 py-1 font-semibold text-slate-500 uppercase tracking-wider text-[10px] flex items-center justify-between">
+                                        <span>Authorized Merchant Tenants</span>
+                                        <span className="text-[10px] text-emerald-600 font-normal">
+                                            {permittedMerchants.length > 0 ? `${permittedMerchants.length} active` : 'all'}
+                                        </span>
                                     </div>
                                     <div className="mt-1 space-y-0.5">
-                                        {SEEDED_MERCHANTS.map((m) => (
+                                        {(permittedMerchants.length > 0 ? permittedMerchants : SEEDED_MERCHANTS).map((m: { id: string; name: string; role?: string; slug?: string }) => (
                                             <button
                                                 key={m.id}
                                                 type="button"
@@ -125,10 +157,10 @@ export function ConsoleAppHeader({
                                                         : 'text-slate-700 hover:bg-slate-50'
                                                 }`}
                                             >
-                                                <div>
-                                                    <div className="font-medium">{m.name}</div>
-                                                    <div className="text-[11px] text-slate-400 font-mono">
-                                                        slug: {m.slug}
+                                                <div className="min-w-0 pr-2">
+                                                    <div className="font-medium truncate">{m.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono truncate">
+                                                        {m.slug} {m.role ? `• ${m.role}` : ''}
                                                     </div>
                                                 </div>
                                                 {m.id === currentMerchantId && (
@@ -138,14 +170,15 @@ export function ConsoleAppHeader({
                                         ))}
                                     </div>
 
+                                    {/* Tenant Isolation Test Input */}
                                     <div className="mt-2 border-t border-slate-100 pt-2 px-1">
-                                        <div className="text-[10px] text-slate-400 font-medium mb-1">
-                                            Custom Merchant UUID:
+                                        <div className="text-[10px] text-slate-500 font-medium mb-1">
+                                            Test Cross-Tenant Isolation (UUID):
                                         </div>
                                         <div className="flex gap-1">
                                             <input
                                                 type="text"
-                                                placeholder="e.g. 11111111-..."
+                                                placeholder="e.g. 22222222-2222-..."
                                                 value={customMerchantInput}
                                                 onChange={(e) => setCustomMerchantInput(e.target.value)}
                                                 className="w-full rounded border border-slate-200 px-2 py-1 text-[11px] font-mono focus:border-fin-brand focus:outline-none"
@@ -159,86 +192,116 @@ export function ConsoleAppHeader({
                                                         setCustomMerchantInput('');
                                                     }
                                                 }}
-                                                className="rounded bg-slate-800 px-2 py-1 text-white text-[11px] font-medium hover:bg-slate-700"
+                                                className="rounded bg-slate-800 px-2.5 py-1 text-white text-[11px] font-medium hover:bg-slate-700 shrink-0"
                                             >
-                                                Apply
+                                                Scope
                                             </button>
                                         </div>
+                                        <p className="text-[9px] text-slate-400 mt-1 leading-normal">
+                                            Switching to an unauthorized merchant ID server-enforces 404 access denial.
+                                        </p>
                                     </div>
                                 </div>
                             </>
                         )}
                     </div>
 
-                    {/* Operator Identity Badge */}
+                    {/* Operator Identity Badge / Auth Dropdown */}
                     <div className="relative">
-                        <button
-                            type="button"
-                            onClick={() => setOperatorMenuOpen((prev) => !prev)}
-                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
-                            aria-expanded={operatorMenuOpen}
-                        >
-                            <div className="size-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-                                <User className="size-3" />
-                            </div>
-                            <div className="text-left hidden sm:block">
-                                <div className="font-medium text-slate-900 leading-none">
-                                    {operatorContext.operatorId}
+                        {currentUser ? (
+                            <button
+                                type="button"
+                                onClick={() => setOperatorMenuOpen((prev) => !prev)}
+                                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
+                                aria-expanded={operatorMenuOpen}
+                            >
+                                <div className="size-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                                    <User className="size-3" />
                                 </div>
-                                <div className="text-[10px] text-slate-400 font-mono leading-none mt-0.5">
-                                    {operatorContext.role}
+                                <div className="text-left hidden sm:block">
+                                    <div className="font-medium text-slate-900 leading-none">
+                                        {currentUser.fullName}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-mono leading-none mt-0.5">
+                                        {operatorContext.role}
+                                    </div>
                                 </div>
-                            </div>
-                            <ChevronDown className="size-3 text-slate-400 shrink-0" />
-                        </button>
+                                <ChevronDown className="size-3 text-slate-400 shrink-0" />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={onOpenAuthModal}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-fin-brand px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-fin-brand/90 transition-colors"
+                            >
+                                <LogIn className="size-3.5" />
+                                <span>Sign In</span>
+                            </button>
+                        )}
 
-                        {operatorMenuOpen && (
+                        {currentUser && operatorMenuOpen && (
                             <>
                                 <div
                                     className="fixed inset-0 z-40"
                                     onClick={() => setOperatorMenuOpen(false)}
                                 />
-                                <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg z-50 text-xs">
-                                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-100">
-                                        <Shield className="size-4 text-fin-brand" />
-                                        <span className="font-semibold text-slate-800">Operator Identity</span>
+                                <div className="absolute right-0 mt-1.5 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-lg z-50 text-xs">
+                                    <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
+                                        <div className="size-8 rounded-full bg-fin-brand/10 text-fin-brand flex items-center justify-center font-semibold text-xs">
+                                            {currentUser.fullName.charAt(0)}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="font-semibold text-slate-900 truncate">
+                                                {currentUser.fullName}
+                                            </div>
+                                            <div className="text-[11px] text-slate-400 font-mono truncate">
+                                                {currentUser.email}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <div>
-                                            <label className="text-[11px] text-slate-500 font-medium block mb-1">
-                                                Operator ID:
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={operatorContext.operatorId}
-                                                onChange={(e) =>
-                                                    onUpdateOperatorContext({
-                                                        ...operatorContext,
-                                                        operatorId: e.target.value,
-                                                    })
-                                                }
-                                                className="w-full rounded border border-slate-200 px-2 py-1 text-xs font-mono focus:border-fin-brand focus:outline-none"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[11px] text-slate-500 font-medium block mb-1">
-                                                Role:
-                                            </label>
-                                            <select
-                                                value={operatorContext.role}
-                                                onChange={(e) =>
-                                                    onUpdateOperatorContext({
-                                                        ...operatorContext,
-                                                        role: e.target.value,
-                                                    })
-                                                }
-                                                className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-fin-brand focus:outline-none bg-white"
+
+                                    <div className="py-2.5 border-b border-slate-100 space-y-1.5">
+                                        <div className="flex items-center justify-between text-slate-600">
+                                            <span>Active Role:</span>
+                                            <span
+                                                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${roleColor(
+                                                    operatorContext.role,
+                                                )}`}
                                             >
-                                                <option value="OPERATOR">OPERATOR</option>
-                                                <option value="ADMIN">ADMIN</option>
-                                                <option value="VIEWER">VIEWER (Read-only)</option>
-                                            </select>
+                                                {operatorContext.role}
+                                            </span>
                                         </div>
+                                        <div className="flex items-center justify-between text-slate-600">
+                                            <span>Authorized Tenants:</span>
+                                            <span className="font-mono text-slate-800">
+                                                {permittedMerchants.length}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 flex flex-col gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setOperatorMenuOpen(false);
+                                                onOpenAuthModal();
+                                            }}
+                                            className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                                        >
+                                            <Sparkles className="size-3.5 text-fin-brand shrink-0" />
+                                            <span>Switch Operator Account…</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setOperatorMenuOpen(false);
+                                                onLogout();
+                                            }}
+                                            className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-red-600 hover:bg-red-50 transition-colors text-left"
+                                        >
+                                            <LogOut className="size-3.5 shrink-0" />
+                                            <span>Sign Out</span>
+                                        </button>
                                     </div>
                                 </div>
                             </>

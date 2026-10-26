@@ -2,9 +2,11 @@ import express, { type Application } from 'express';
 import healthRouter from './routes/health';
 import { createPayPalWebhookRouter, type WebhookRouterDeps } from './routes/paypal-webhooks';
 import { createExceptionRouter, type ExceptionRouterDeps } from './routes/exceptions';
+import { createAuthRouter, type AuthRouterDeps } from './routes/auth';
 
 export interface AppDeps extends WebhookRouterDeps {
     exceptionRouterDeps?: ExceptionRouterDeps;
+    authRouterDeps?: AuthRouterDeps;
 }
 
 export function buildApp(deps?: AppDeps): Application {
@@ -18,7 +20,9 @@ export function buildApp(deps?: AppDeps): Application {
 
     // 3. Application routes
     app.use(healthRouter);
+    app.use('/api/auth', createAuthRouter(deps?.authRouterDeps));
     app.use('/api/merchants/:merchantId/exceptions', createExceptionRouter(deps?.exceptionRouterDeps));
 
     return app;
-}
+}
+

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { PrismaClient } from '../src/generated/prisma';
+import { hashPassword } from '../src/auth/password';
 
 const prisma = new PrismaClient();
 
@@ -30,6 +31,124 @@ async function main(): Promise<void> {
             status: 'ACTIVE',
         },
     });
+
+    // Upsert third isolated merchant for tenant isolation testing
+    const isolatedMerchant = await prisma.merchant.upsert({
+        where: { slug: 'isolated-merchant' },
+        update: {},
+        create: {
+            id: '22222222-2222-4222-8222-222222222222',
+            name: 'Apex Global Trade (Isolated Tenant)',
+            slug: 'isolated-merchant',
+            status: 'ACTIVE',
+        },
+    });
+
+    // 2. Seed Users & Memberships for Authentication & Tenant Isolation
+    const defaultPasswordHash = await hashPassword('Password123!');
+
+    const adminUser = await prisma.user.upsert({
+        where: { email: 'admin@reconresolve.com' },
+        update: { passwordHash: defaultPasswordHash },
+        create: {
+            id: 'aaaa1111-1111-4111-8111-111111111111',
+            email: 'admin@reconresolve.com',
+            passwordHash: defaultPasswordHash,
+            fullName: 'Sarah Jenkins (Owner)',
+            status: 'ACTIVE',
+        },
+    });
+
+    const analystUser = await prisma.user.upsert({
+        where: { email: 'analyst@reconresolve.com' },
+        update: { passwordHash: defaultPasswordHash },
+        create: {
+            id: 'bbbb2222-2222-4222-8222-222222222222',
+            email: 'analyst@reconresolve.com',
+            passwordHash: defaultPasswordHash,
+            fullName: 'Alex Rivera (Analyst)',
+            status: 'ACTIVE',
+        },
+    });
+
+    const viewerUser = await prisma.user.upsert({
+        where: { email: 'viewer@reconresolve.com' },
+        update: { passwordHash: defaultPasswordHash },
+        create: {
+            id: 'cccc3333-3333-4333-8333-333333333333',
+            email: 'viewer@reconresolve.com',
+            passwordHash: defaultPasswordHash,
+            fullName: 'Morgan Lee (Auditor / Viewer)',
+            status: 'ACTIVE',
+        },
+    });
+
+    const isolatedUser = await prisma.user.upsert({
+        where: { email: 'isolated@othermerchant.com' },
+        update: { passwordHash: defaultPasswordHash },
+        create: {
+            id: 'dddd4444-4444-4444-8444-444444444444',
+            email: 'isolated@othermerchant.com',
+            passwordHash: defaultPasswordHash,
+            fullName: 'Taylor Cross (Isolated Operator)',
+            status: 'ACTIVE',
+        },
+    });
+
+    const disabledUser = await prisma.user.upsert({
+        where: { email: 'disabled@reconresolve.com' },
+        update: { passwordHash: defaultPasswordHash },
+        create: {
+            id: 'eeee5555-5555-4555-8555-555555555555',
+            email: 'disabled@reconresolve.com',
+            passwordHash: defaultPasswordHash,
+            fullName: 'Inactive Operator (Suspended)',
+            status: 'SUSPENDED',
+        },
+    });
+
+    // Memberships:
+    // adminUser -> OWNER on demoMerchant, ADMIN on sandboxMerchant
+    await prisma.merchantMembership.upsert({
+        where: { userId_merchantId: { userId: adminUser.id, merchantId: merchant.id } },
+        update: { role: 'OWNER' },
+        create: { userId: adminUser.id, merchantId: merchant.id, role: 'OWNER' },
+    });
+    await prisma.merchantMembership.upsert({
+        where: { userId_merchantId: { userId: adminUser.id, merchantId: sandboxMerchant.id } },
+        update: { role: 'ADMIN' },
+        create: { userId: adminUser.id, merchantId: sandboxMerchant.id, role: 'ADMIN' },
+    });
+
+    // analystUser -> ANALYST on demoMerchant
+    await prisma.merchantMembership.upsert({
+        where: { userId_merchantId: { userId: analystUser.id, merchantId: merchant.id } },
+        update: { role: 'ANALYST' },
+        create: { userId: analystUser.id, merchantId: merchant.id, role: 'ANALYST' },
+    });
+
+    // viewerUser -> VIEWER on demoMerchant
+    await prisma.merchantMembership.upsert({
+        where: { userId_merchantId: { userId: viewerUser.id, merchantId: merchant.id } },
+        update: { role: 'VIEWER' },
+        create: { userId: viewerUser.id, merchantId: merchant.id, role: 'VIEWER' },
+    });
+
+    // isolatedUser -> OWNER on isolatedMerchant ONLY
+    await prisma.merchantMembership.upsert({
+        where: { userId_merchantId: { userId: isolatedUser.id, merchantId: isolatedMerchant.id } },
+        update: { role: 'OWNER' },
+        create: { userId: isolatedUser.id, merchantId: isolatedMerchant.id, role: 'OWNER' },
+    });
+
+    // disabledUser -> VIEWER on demoMerchant
+    await prisma.merchantMembership.upsert({
+        where: { userId_merchantId: { userId: disabledUser.id, merchantId: merchant.id } },
+        update: { role: 'VIEWER' },
+        create: { userId: disabledUser.id, merchantId: merchant.id, role: 'VIEWER' },
+    });
+
+    console.log('[seed] Users and merchant memberships successfully seeded!');
 
     for (const currentMerchant of [merchant, sandboxMerchant]) {
         const mId = currentMerchant.id;
