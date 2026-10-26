@@ -62,6 +62,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         if (filter?.merchantOrderId) params.set('merchantOrderId', filter.merchantOrderId);
         if (filter?.createdFrom) params.set('createdFrom', filter.createdFrom);
         if (filter?.createdTo) params.set('createdTo', filter.createdTo);
+        if (filter?.search) params.set('search', filter.search);
         if (filter?.cursor) params.set('cursor', filter.cursor);
         if (filter?.limit) params.set('limit', String(filter.limit));
 

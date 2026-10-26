@@ -25,6 +25,7 @@ export interface ListExceptionsFilter {
     merchantOrderId?: string;
     createdFrom?: Date;
     createdTo?: Date;
+    search?: string;
     cursor?: string;
     limit?: number;
 }

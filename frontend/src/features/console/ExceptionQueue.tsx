@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Check, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, Download, Filter } from 'lucide-react';
 import type { ExceptionStatus, ExceptionSummary, ListExceptionsFilter, PaginationMetadata } from '@/services/api/types';
 import { StatusBadge } from '@/components/fintech/StatusBadge';
 import { ExceptionTypeBadge } from '@/components/fintech/ExceptionTypeBadge';
@@ -8,6 +8,7 @@ import { EmptyState, ErrorState } from '@/components/fintech/FeedbackStates';
 import { FintechButton } from '@/components/fintech/FintechButton';
 import { ExceptionFilters } from './ExceptionFilters';
 import { formatMinorUnits, formatShortDate, truncateId } from '@/lib/formatters';
+import { exportExceptionsToCsv } from '@/lib/csv-export';
 
 interface ExceptionQueueProps {
     items: ExceptionSummary[];
@@ -24,6 +25,8 @@ interface ExceptionQueueProps {
     onPrevPage: () => void;
     hasPrevPage: boolean;
     statusCounts?: Record<ExceptionStatus, number>;
+    merchantSlug?: string;
+    onExportSuccess?: (count: number) => void;
 }
 
 export function ExceptionQueue({
@@ -41,6 +44,8 @@ export function ExceptionQueue({
     onPrevPage,
     hasPrevPage,
     statusCounts,
+    merchantSlug = 'default',
+    onExportSuccess,
 }: ExceptionQueueProps) {
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -49,6 +54,12 @@ export function ExceptionQueue({
         navigator.clipboard.writeText(id);
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 1500);
+    };
+
+    const handleExportCsv = () => {
+        if (items.length === 0) return;
+        exportExceptionsToCsv(items, merchantSlug);
+        onExportSuccess?.(items.length);
     };
 
     /**
@@ -253,10 +264,23 @@ export function ExceptionQueue({
 
             {/* Pagination Controls */}
             <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2.5 bg-slate-50/60 text-xs text-slate-600">
-                <span className="tabular-nums">
-                    Showing <span className="font-medium text-slate-900">{items.length}</span> exceptions
-                    {pagination.totalCount !== undefined ? ` of ${pagination.totalCount}` : ''}
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className="tabular-nums">
+                        Showing <span className="font-medium text-slate-900">{items.length}</span> exceptions
+                        {pagination.totalCount !== undefined ? ` of ${pagination.totalCount}` : ''}
+                    </span>
+                    {items.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={handleExportCsv}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-slate-200 bg-white text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors ml-2 cursor-pointer shadow-2xs"
+                            title={`Export ${items.length} exceptions as CSV`}
+                        >
+                            <Download className="size-3 text-slate-500" />
+                            <span>Export CSV</span>
+                        </button>
+                    )}
+                </div>
 
                 <div className="flex items-center gap-1.5">
                     <FintechButton

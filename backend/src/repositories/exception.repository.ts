@@ -70,6 +70,36 @@ export function createExceptionRepository(dbProvider = getDB): ExceptionReposito
                 }
             }
 
+            if (filter.search) {
+                const term = filter.search.trim();
+                const orConditions: any[] = [
+                    { merchantOrder: { externalOrderId: { contains: term, mode: 'insensitive' } } },
+                    { providerTransaction: { providerTxnId: { contains: term, mode: 'insensitive' } } },
+                    { resolutionNote: { contains: term, mode: 'insensitive' } },
+                ];
+
+                const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (UUID_REGEX.test(term)) {
+                    orConditions.push({ id: term });
+                    orConditions.push({ merchantOrderId: term });
+                    orConditions.push({ providerTransactionId: term });
+                }
+
+                const ALL_TYPES = [
+                    'AMOUNT_MISMATCH',
+                    'STATUS_DISCREPANCY',
+                    'MISSING_PROVIDER_COUNTERPART',
+                    'MISSING_MERCHANT_COUNTERPART',
+                    'AMBIGUOUS_MATCH',
+                ];
+                const matchedTypes = ALL_TYPES.filter((t) => t.includes(term.toUpperCase().replace(/\s+/g, '_')));
+                if (matchedTypes.length > 0) {
+                    orConditions.push({ type: { in: matchedTypes } });
+                }
+
+                whereClause.OR = orConditions;
+            }
+
             const queryArgs: any = {
                 where: whereClause,
                 orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

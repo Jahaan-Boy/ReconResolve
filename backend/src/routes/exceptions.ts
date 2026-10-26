@@ -40,6 +40,7 @@ const ListQuerySchema = z.object({
         .datetime()
         .optional()
         .transform((val) => (val ? new Date(val) : undefined)),
+    search: z.string().trim().min(1).max(200).optional(),
     cursor: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
 });

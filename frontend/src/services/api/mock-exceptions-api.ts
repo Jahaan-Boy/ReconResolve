@@ -465,9 +465,13 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
             all = all.filter(
                 (e) =>
                     e.id.toLowerCase().includes(q) ||
-                    e.linkedMerchantOrder?.externalOrderId.toLowerCase().includes(q) ||
-                    e.linkedProviderTransaction?.providerTxnId.toLowerCase().includes(q) ||
-                    e.type.toLowerCase().includes(q),
+                    (e.linkedMerchantOrder?.externalOrderId && e.linkedMerchantOrder.externalOrderId.toLowerCase().includes(q)) ||
+                    (e.linkedProviderTransaction?.providerTxnId && e.linkedProviderTransaction.providerTxnId.toLowerCase().includes(q)) ||
+                    e.type.toLowerCase().includes(q) ||
+                    e.status.toLowerCase().includes(q) ||
+                    (e.resolutionNote && e.resolutionNote.toLowerCase().includes(q)) ||
+                    (e.merchantOrderId && e.merchantOrderId.toLowerCase().includes(q)) ||
+                    (e.providerTransactionId && e.providerTransactionId.toLowerCase().includes(q)),
             );
         }
 

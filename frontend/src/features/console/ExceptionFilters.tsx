@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar, RotateCcw, Search, X } from 'lucide-react';
 import type { ExceptionStatus, ExceptionType, ListExceptionsFilter } from '@/services/api/types';
 import { FintechButton } from '@/components/fintech/FintechButton';
@@ -35,19 +35,56 @@ export function ExceptionFilters({
     const [searchInput, setSearchInput] = useState(filters.search || '');
     const [showDateRange, setShowDateRange] = useState(Boolean(filters.createdFrom || filters.createdTo));
 
-    // Debounce search input
+    const filtersRef = useRef(filters);
+    filtersRef.current = filters;
+    const onChangeFiltersRef = useRef(onChangeFilters);
+    onChangeFiltersRef.current = onChangeFilters;
+
+    // Sync input when filters.search is reset or modified externally
     useEffect(() => {
-        const handler = setTimeout(() => {
-            if (searchInput !== (filters.search || '')) {
-                onChangeFilters({
-                    ...filters,
-                    search: searchInput.trim() || undefined,
+        setSearchInput(filters.search || '');
+    }, [filters.search]);
+
+    // Debounce search input changes (300ms)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const trimmed = searchInput.trim();
+            const current = filtersRef.current.search || '';
+            if (trimmed !== current) {
+                onChangeFiltersRef.current({
+                    ...filtersRef.current,
+                    search: trimmed || undefined,
                     cursor: undefined, // Reset cursor on search change
                 });
             }
         }, 300);
-        return () => clearTimeout(handler);
-    }, [searchInput, filters, onChangeFilters]);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const trimmed = searchInput.trim();
+            if (trimmed !== (filters.search || '')) {
+                onChangeFilters({
+                    ...filters,
+                    search: trimmed || undefined,
+                    cursor: undefined,
+                });
+            }
+        }
+    };
+
+    const handleClearSearch = () => {
+        setSearchInput('');
+        if (filters.search) {
+            onChangeFilters({
+                ...filters,
+                search: undefined,
+                cursor: undefined,
+            });
+        }
+    };
 
     const activeStatus = filters.status || 'ALL';
     const hasActiveFilters = Boolean(
@@ -127,13 +164,15 @@ export function ExceptionFilters({
                         placeholder="Search ID, Order ref, or Txn..."
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-fin-brand focus:ring-1 focus:ring-fin-brand focus:outline-none"
                     />
                     {searchInput && (
                         <button
                             type="button"
-                            onClick={() => setSearchInput('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            onClick={handleClearSearch}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            title="Clear search"
                         >
                             <X className="size-3.5" />
                         </button>

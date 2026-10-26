@@ -10,7 +10,14 @@ import { ExceptionQueue } from './ExceptionQueue';
 import { ExceptionInspector } from './ExceptionInspector';
 import { ExceptionActionDialog } from './ExceptionActionDialog';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
-import { DEFAULT_MERCHANT_ID } from '@/services/api/mock-exceptions-api';
+// import {
+//     authApiClient,
+//     subscribeUnauthorized,
+//     type UserProfile,
+//     type PermittedMerchant,
+//     type AuthSessionData,
+// } from '@/services/api/auth-api';
+import { DEFAULT_MERCHANT_ID, SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
 import {
     ConcurrencyConflictError,
     type ExceptionAction,
@@ -385,6 +392,11 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         setShowMobileDetail(true);
     };
 
+    const currentMerchantSlug =
+        // permittedMerchants.find((m) => m.id === merchantId)?.slug ||
+        SEEDED_MERCHANTS.find((m) => m.id === merchantId)?.slug ||
+        'merchant';
+
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans text-slate-900">
             {/* Top Shared Header */}
@@ -422,6 +434,10 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                             onPrevPage={handlePrevPage}
                             hasPrevPage={cursorHistory.length > 0}
                             statusCounts={statusCounts}
+                            merchantSlug={currentMerchantSlug}
+                            onExportSuccess={(count) =>
+                                addToast('success', `Exported ${count} exceptions to CSV`)
+                            }
                         />
                     </div>
 

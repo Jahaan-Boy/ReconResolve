@@ -6,17 +6,17 @@
 graphify-out/
 # Compiled output
 dist/
-
+todo.md
 # Node dependencies
 node_modules/
-
+docs/
 # Prisma generated client (generated locally via prisma generate)
 src/generated/
 
 # OS artefacts
 .DS_Store
 Thumbs.db
-
+CLAUDE.md
 # Editor directories
 .vscode/
 .idea/
