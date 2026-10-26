@@ -19,10 +19,11 @@ import {
 export interface AuthRouterDeps {
     getDb?: () => PrismaClient;
     sessionService?: SessionService;
+    rateLimiter?: (ip: string) => boolean;
 }
 
 const LoginSchema = z.object({
-    email: z.string().email('Invalid email address').max(255),
+    email: z.string().trim().email('Invalid email address').max(255),
     password: z.string().min(1, 'Password is required').max(255),
 });
 
@@ -35,14 +36,28 @@ interface RateLimitBucket {
     attempts: number;
     resetAt: number;
 }
-const loginRateLimitMap = new Map<string, RateLimitBucket>();
+export const loginRateLimitMap = new Map<string, RateLimitBucket>();
 const MAX_LOGIN_ATTEMPTS = 10;
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_RATE_LIMIT_ENTRIES = 5000; // Cap map size to prevent unbounded memory growth
 
-function checkLoginRateLimit(ip: string): boolean {
+export function checkLoginRateLimit(ip: string): boolean {
     const now = Date.now();
+    // Prune expired entries opportunistically if map size exceeds threshold
+    if (loginRateLimitMap.size > 100) {
+        for (const [key, bucket] of loginRateLimitMap.entries()) {
+            if (bucket.resetAt < now) {
+                loginRateLimitMap.delete(key);
+            }
+        }
+    }
+
     const entry = loginRateLimitMap.get(ip);
     if (!entry || entry.resetAt < now) {
+        if (loginRateLimitMap.size >= MAX_RATE_LIMIT_ENTRIES) {
+            const oldestKey = loginRateLimitMap.keys().next().value;
+            if (oldestKey) loginRateLimitMap.delete(oldestKey);
+        }
         loginRateLimitMap.set(ip, { attempts: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
         return true;
     }
@@ -62,11 +77,12 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
     const dbProvider = deps.getDb ?? getDB;
     const sessionService = deps.sessionService ?? createSessionService({ getDb: deps.getDb });
     const authGuard = authenticate({ sessionService, getDb: deps.getDb });
+    const rateLimitCheck = deps.rateLimiter ?? checkLoginRateLimit;
 
     // 1. POST /login
     router.post('/login', async (req: Request, res: Response): Promise<void> => {
         const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-        if (!checkLoginRateLimit(clientIp)) {
+        if (!rateLimitCheck(clientIp)) {
             res.status(429).json({
                 error: 'RATE_LIMIT_EXCEEDED',
                 message: 'Too many login attempts. Please try again in a few minutes.',
@@ -111,9 +127,9 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
             }
 
             // Create server-managed session with SHA-256 token hash
-            const { rawToken, session } = await sessionService.createSession(user.id);
+            const { rawToken } = await sessionService.createSession(user.id);
 
-            // Set HttpOnly, SameSite=Lax cookie
+            // Set HttpOnly, SameSite=Lax cookie (primary credential transport)
             res.cookie(COOKIE_NAME, rawToken, {
                 httpOnly: true,
                 secure: config.nodeEnv === 'production',
@@ -140,14 +156,13 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
 
             const activeMerchant = merchants[0] || null;
 
-            // Safe privacy-conscious response: never return password hashes or raw session hashes
+            // Safe privacy-conscious response: never return password hashes, raw tokens or session hashes
             res.status(200).json({
                 user: {
                     id: user.id,
                     email: user.email,
                     fullName: user.fullName,
                 },
-                token: rawToken,
                 merchants,
                 activeMerchant,
             });

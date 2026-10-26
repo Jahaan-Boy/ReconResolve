@@ -14,7 +14,6 @@ export interface PermittedMerchant {
 
 export interface AuthSessionData {
     user: UserProfile;
-    token?: string;
     merchants: PermittedMerchant[];
     activeMerchant: PermittedMerchant | null;
 }

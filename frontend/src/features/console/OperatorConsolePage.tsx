@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -44,6 +44,11 @@ interface ToastMessage {
 export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePageProps) {
     // Current merchant context
     const [merchantId, setMerchantId] = useState<string>(DEFAULT_MERCHANT_ID);
+
+    // Generation/Request tracking to prevent cross-tenant async race conditions
+    const queueRequestIdRef = useRef(0);
+    const countsRequestIdRef = useRef(0);
+    const detailRequestIdRef = useRef(0);
 
     // Operator identity
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -163,10 +168,16 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     };
 
     const handleLogout = async () => {
+        // Invalidate in-flight requests
+        queueRequestIdRef.current++;
+        countsRequestIdRef.current++;
+        detailRequestIdRef.current++;
+
         await authApiClient.logout();
         setCurrentUser(null);
         setPermittedMerchants([]);
         setItems([]);
+        setStatusCounts(undefined);
         setDetail(null);
         setSelectedId(null);
         setIsAuthModalOpen(true);
@@ -176,8 +187,10 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Fetch global status counts across all exceptions for current merchant
     const loadStatusCounts = useCallback(
         async (targetMerchantId: string) => {
+            const reqId = ++countsRequestIdRef.current;
             try {
                 const res = await adaptiveApiClient.listExceptions(targetMerchantId, { limit: 100 });
+                if (reqId !== countsRequestIdRef.current) return;
                 const counts: Record<ExceptionStatus, number> = {
                     OPEN: 0,
                     INVESTIGATING: 0,
@@ -200,10 +213,12 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Fetch queue exceptions
     const loadExceptions = useCallback(
         async (targetMerchantId: string, activeFilters: ListExceptionsFilter) => {
+            const reqId = ++queueRequestIdRef.current;
             setLoadingQueue(true);
             setQueueError(null);
             try {
                 const res = await adaptiveApiClient.listExceptions(targetMerchantId, activeFilters);
+                if (reqId !== queueRequestIdRef.current) return;
                 setItems(res.items);
                 setPagination(res.pagination);
 
@@ -235,11 +250,14 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                     setDetail(null);
                 }
             } catch (err: unknown) {
+                if (reqId !== queueRequestIdRef.current) return;
                 const message = err instanceof Error ? err.message : 'Failed to load exceptions queue from server';
                 setQueueError(message);
                 addToast('error', `Error loading queue: ${message}`);
             } finally {
-                setLoadingQueue(false);
+                if (reqId === queueRequestIdRef.current) {
+                    setLoadingQueue(false);
+                }
             }
         },
         [addToast],
@@ -248,15 +266,20 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Fetch single exception detail
     const loadDetail = useCallback(
         async (targetMerchantId: string, exceptionId: string) => {
+            const reqId = ++detailRequestIdRef.current;
             setLoadingDetail(true);
             try {
                 const data = await adaptiveApiClient.getException(targetMerchantId, exceptionId);
+                if (reqId !== detailRequestIdRef.current) return;
                 setDetail(data);
             } catch (err: unknown) {
+                if (reqId !== detailRequestIdRef.current) return;
                 const message = err instanceof Error ? err.message : 'Failed to load details';
                 addToast('error', `Failed to load details for ${exceptionId}: ${message}`);
             } finally {
-                setLoadingDetail(false);
+                if (reqId === detailRequestIdRef.current) {
+                    setLoadingDetail(false);
+                }
             }
         },
         [addToast],
@@ -305,7 +328,15 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     // Merchant Switch Handler: clears selections and resets pagination
     const handleSelectMerchant = (newMerchantId: string) => {
         if (newMerchantId === merchantId) return;
+        // Invalidate in-flight requests from the previous tenant context
+        queueRequestIdRef.current++;
+        countsRequestIdRef.current++;
+        detailRequestIdRef.current++;
+
+        // Immediately isolate tenant state by clearing UI items and selection
         setMerchantId(newMerchantId);
+        setItems([]);
+        setStatusCounts(undefined);
         setSelectedId(null);
         setDetail(null);
         setCursorHistory([]);
