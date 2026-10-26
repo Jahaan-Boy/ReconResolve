@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
+import { config } from '../config';
 import { getDB } from '../db/postgres';
 import type { PrismaClient } from '../generated/prisma';
 
-export const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const DEFAULT_SESSION_TTL_MS = config?.sessionTtlMs ?? (7 * 24 * 60 * 60 * 1000); // from config or 7 days fallback
 
 export function hashSessionToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');

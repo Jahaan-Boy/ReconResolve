@@ -25,16 +25,31 @@ function parseNodeEnv(raw: string): NodeEnv {
     }
     return raw as NodeEnv;
 }
+function parseSessionTtlHours(raw?: string): number {
+    if (!raw || raw.trim() === '') {
+        return 168; // default 7 days (168 hours)
+    }
+    const hours = Number(raw.trim());
+    if (!Number.isInteger(hours) || hours < 1 || hours > 8760) {
+        throw new Error(
+            `SESSION_TTL_HOURS must be a valid integer between 1 and 8760 (received: "${raw}")`,
+        );
+    }
+    return hours;
+}
 function loadConfig() {
     try {
         const nodeEnvRaw = requireNonEmpty('NODE_ENV');
         const hostRaw = requireNonEmpty('HOST');
         const portRaw = requireNonEmpty('PORT');
         requireNonEmpty('DATABASE_URL');
+        const sessionTtlHours = parseSessionTtlHours(process.env['SESSION_TTL_HOURS']);
         return {
             nodeEnv: parseNodeEnv(nodeEnvRaw),
             host: hostRaw,
             port: parsePort(portRaw),
+            sessionTtlHours,
+            sessionTtlMs: sessionTtlHours * 60 * 60 * 1000,
             get databaseUrl(): string {
                 return process.env['DATABASE_URL'] as string;
             },

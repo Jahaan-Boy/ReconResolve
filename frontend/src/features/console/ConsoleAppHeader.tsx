@@ -143,7 +143,7 @@ export function ConsoleAppHeader({
                                         </span>
                                     </div>
                                     <div className="mt-1 space-y-0.5">
-                                        {(permittedMerchants.length > 0 ? permittedMerchants : SEEDED_MERCHANTS).map((m: any) => (
+                                        {(permittedMerchants.length > 0 ? permittedMerchants : SEEDED_MERCHANTS).map((m: { id: string; name: string; role?: string; slug?: string }) => (
                                             <button
                                                 key={m.id}
                                                 type="button"
