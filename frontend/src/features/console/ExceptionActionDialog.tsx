@@ -1,7 +1,83 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, RotateCcw, Search, X, XCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, RotateCcw, Search, Sparkles, X, XCircle } from 'lucide-react';
 import type { ExceptionAction, ExceptionDetail } from '@/services/api/types';
 import { FintechButton } from '@/components/fintech/FintechButton';
+
+interface NotePreset {
+    label: string;
+    text: string;
+}
+
+const ACTION_PRESETS: Record<ExceptionAction, NotePreset[]> = {
+    RESOLVE: [
+        {
+            label: 'Bank settlement',
+            text: 'Manually verified via bank settlement report',
+        },
+        {
+            label: 'Support refund',
+            text: 'Customer refunded through alternate support channel',
+        },
+        {
+            label: 'FX variance',
+            text: 'Approved FX conversion variance within bounds',
+        },
+        {
+            label: 'Offline ledger',
+            text: 'Offline ledger adjustment entry booked',
+        },
+        {
+            label: 'OMS verified',
+            text: 'Verified order delivery and captured in merchant OMS',
+        },
+    ],
+    DISMISS: [
+        {
+            label: 'Staging / test',
+            text: 'Duplicate test transaction created in staging environment',
+        },
+        {
+            label: 'Balance inquiry',
+            text: 'Non-financial balance inquiry confirmed with provider',
+        },
+        {
+            label: 'Rounding anomaly',
+            text: 'Known external payment processor rounding anomaly',
+        },
+        {
+            label: 'Benign variance',
+            text: 'Within accepted risk threshold; no financial action needed',
+        },
+    ],
+    REOPEN: [
+        {
+            label: 'Dispute / chargeback',
+            text: 'Audit flagged recurring payment dispute or chargeback',
+        },
+        {
+            label: 'Customer evidence',
+            text: 'Additional customer invoice evidence submitted for review',
+        },
+        {
+            label: 'Clawback reversed',
+            text: 'Discrepancy re-evaluated following payment processor clawback',
+        },
+    ],
+    INVESTIGATE: [
+        {
+            label: 'Gateway logs',
+            text: 'Cross-referencing payment gateway logs with merchant OMS',
+        },
+        {
+            label: 'Escalated to billing',
+            text: 'Escalated to billing operations for ledger account review',
+        },
+        {
+            label: 'Awaiting receipt',
+            text: 'Awaiting customer receipt verification from merchant support',
+        },
+    ],
+};
 
 interface ExceptionActionDialogProps {
     action: ExceptionAction | null;
@@ -27,6 +103,19 @@ export function ExceptionActionDialog({
     const [note, setNote] = useState('');
     const [touched, setTouched] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const prevTargetRef = useRef<string | null>(null);
+
+    // Reset note and touched when a new exception or action is targeted (unless conflict active)
+    useEffect(() => {
+        if (isOpen && exception && action) {
+            const currentKey = `${exception.id}-${action}-${exception.version}`;
+            if (prevTargetRef.current !== currentKey && !conflictMessage) {
+                setNote('');
+                setTouched(false);
+                prevTargetRef.current = currentKey;
+            }
+        }
+    }, [isOpen, exception, action, conflictMessage]);
 
     // Focus textarea on open
     useEffect(() => {
@@ -53,6 +142,14 @@ export function ExceptionActionDialog({
     if (!isOpen || !action || !exception) {
         return null;
     }
+
+    const presets = ACTION_PRESETS[action] || [];
+
+    const handleApplyPreset = (templateText: string) => {
+        setNote(templateText);
+        setTouched(true);
+        textareaRef.current?.focus();
+    };
 
     const currentStatus = exception.status;
     const isActionStillValid =
@@ -218,6 +315,37 @@ export function ExceptionActionDialog({
                                 {trimmedLength} / 1000
                             </span>
                         </div>
+
+                        {/* Quick Justification Presets */}
+                        {presets.length > 0 && (
+                            <div className="mb-2.5 space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                                    <Sparkles className="size-3 text-amber-500" />
+                                    <span>Quick justification templates:</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {presets.map((preset) => {
+                                        const isSelected = note.trim() === preset.text;
+                                        return (
+                                            <button
+                                                key={preset.label}
+                                                type="button"
+                                                disabled={isSubmitting}
+                                                onClick={() => handleApplyPreset(preset.text)}
+                                                className={`rounded-lg px-2.5 py-1 text-[11px] transition-all cursor-pointer border ${
+                                                    isSelected
+                                                        ? 'bg-fin-brand/10 border-fin-brand text-fin-brand font-medium shadow-2xs'
+                                                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:border-slate-300'
+                                                }`}
+                                                title={`Click to fill: "${preset.text}"`}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         <textarea
                             id="action-note-input"
