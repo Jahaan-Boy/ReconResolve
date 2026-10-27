@@ -156,14 +156,13 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
 
             const activeMerchant = merchants[0] || null;
 
-            // Safe privacy-conscious response: returns session bearer token for API clients alongside HttpOnly cookie
+            // Safe privacy-conscious response: session is established via HttpOnly cookie; raw token omitted from JSON body
             res.status(200).json({
                 user: {
                     id: user.id,
                     email: user.email,
                     fullName: user.fullName,
                 },
-                token: rawToken,
                 merchants,
                 activeMerchant,
             });

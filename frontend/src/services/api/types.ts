@@ -165,3 +165,102 @@ export interface ExceptionsApiClient {
     dismiss(merchantId: string, exceptionId: string, input: DismissExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
     investigate(merchantId: string, exceptionId: string, input: InvestigateExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
 }
+
+export type ProviderConnectionStatus = 'ACTIVE' | 'DISABLED' | 'NEEDS_REAUTH';
+export type ProviderCode = 'PAYPAL';
+
+export interface ProviderConnectionSummary {
+    id: string;
+    merchantId: string;
+    provider: ProviderCode;
+    connectionKey: string;
+    providerAccountId: string | null;
+    status: ProviderConnectionStatus;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ProviderConnectionDetail extends ProviderConnectionSummary {
+    syncHealth: {
+        status: ProviderConnectionStatus;
+        lastTransactionAt: string | null;
+        totalTransactions: number;
+    };
+}
+
+export interface ListConnectionsFilter {
+    provider?: ProviderCode;
+    status?: ProviderConnectionStatus;
+    limit?: number;
+    cursor?: string;
+}
+
+export interface ListConnectionsResult {
+    items: ProviderConnectionSummary[];
+    pagination: PaginationMetadata;
+}
+
+export type ProviderTransactionType =
+    | 'PAYMENT'
+    | 'CAPTURE'
+    | 'REFUND'
+    | 'REVERSAL'
+    | 'ADJUSTMENT'
+    | 'OTHER';
+
+export type ProviderTransactionStatus =
+    | 'CREATED'
+    | 'APPROVED'
+    | 'PENDING'
+    | 'CAPTURED'
+    | 'FAILED'
+    | 'REFUNDED'
+    | 'PARTIALLY_REFUNDED'
+    | 'VOIDED';
+
+export interface ProviderTransactionSummary {
+    id: string;
+    merchantId: string;
+    providerConnectionId: string;
+    providerTxnId: string;
+    providerRecordKey: string;
+    providerOrderId: string | null;
+    type: ProviderTransactionType;
+    status: ProviderTransactionStatus;
+    amountMinor: string;
+    currency: string;
+    feeMinor: string | null;
+    occurredAt: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ProviderTransactionDetail extends ProviderTransactionSummary {
+    connection: {
+        id: string;
+        provider: ProviderCode;
+        connectionKey: string;
+        providerAccountId: string | null;
+        status: ProviderConnectionStatus;
+    };
+}
+
+export interface ListTransactionsFilter {
+    connectionId?: string;
+    status?: ProviderTransactionStatus;
+    type?: ProviderTransactionType;
+    currency?: string;
+    from?: string;
+    to?: string;
+    providerTxnId?: string;
+    providerRecordKey?: string;
+    providerOrderId?: string;
+    limit?: number;
+    cursor?: string;
+}
+
+export interface ListTransactionsResult {
+    items: ProviderTransactionSummary[];
+    pagination: PaginationMetadata;
+}
+
