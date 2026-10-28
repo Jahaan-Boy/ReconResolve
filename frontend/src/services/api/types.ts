@@ -264,3 +264,76 @@ export interface ListTransactionsResult {
     pagination: PaginationMetadata;
 }
 
+export type MerchantOrderStatus =
+    | 'OPEN'
+    | 'PAYMENT_PENDING'
+    | 'PAID'
+    | 'CANCELLED'
+    | 'REFUNDED';
+
+export interface MerchantOrderSummary {
+    id: string;
+    merchantId: string;
+    externalOrderId: string;
+    amountMinor: string;
+    currency: string;
+    status: MerchantOrderStatus;
+    orderedAt: string;
+    metadata: Record<string, unknown> | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ListOrdersFilter {
+    status?: MerchantOrderStatus;
+    currency?: string;
+    from?: string;
+    to?: string;
+    externalOrderId?: string;
+    cursor?: string;
+    limit?: number;
+}
+
+export interface ListOrdersResult {
+    items: MerchantOrderSummary[];
+    pagination: PaginationMetadata;
+}
+
+export interface IngestOrderInput {
+    externalOrderId: string;
+    amountMinor?: string | number;
+    amount?: string;
+    currency: string;
+    status?: MerchantOrderStatus;
+    orderedAt: string;
+    metadata?: Record<string, unknown> | null;
+}
+
+export interface SingleIngestResult {
+    outcome: 'created' | 'duplicate';
+    order: MerchantOrderSummary;
+}
+
+export interface BatchItemResult {
+    index: number;
+    externalOrderId: string;
+    status: 'created' | 'duplicate' | 'rejected';
+    orderId?: string;
+    order?: MerchantOrderSummary;
+    error?: {
+        code: string;
+        message: string;
+        details?: unknown;
+    };
+}
+
+export interface BatchIngestResult {
+    summary: {
+        received: number;
+        created: number;
+        duplicates: number;
+        rejected: number;
+    };
+    results: BatchItemResult[];
+}
+

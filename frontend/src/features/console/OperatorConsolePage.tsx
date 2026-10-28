@@ -9,6 +9,7 @@ import { ConsoleAppHeader } from './ConsoleAppHeader';
 import { ExceptionQueue } from './ExceptionQueue';
 import { ExceptionInspector } from './ExceptionInspector';
 import { ExceptionActionDialog } from './ExceptionActionDialog';
+import { OrderIngestionDialog } from './OrderIngestionDialog';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
 import {
@@ -54,6 +55,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [permittedMerchants, setPermittedMerchants] = useState<PermittedMerchant[]>([]);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
     const [operatorContext, setOperatorContext] = useState<OperatorContext>({
         operatorId: 'operator-sarah',
@@ -532,6 +534,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 apiSource={apiSource}
                 onToggleApiSource={(src) => adaptiveApiClient.setSource(src)}
                 onNavigateLanding={onNavigateLanding}
+                onOpenOrderIngestion={() => setIsOrderModalOpen(true)}
             />
 
             {/* Workbench Body */}
@@ -594,6 +597,14 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 onReloadConflict={
                     detail ? () => loadDetail(merchantId, detail.id) : undefined
                 }
+            />
+
+            {/* Order Ingestion Modal */}
+            <OrderIngestionDialog
+                isOpen={isOrderModalOpen}
+                onClose={() => setIsOrderModalOpen(false)}
+                merchantId={merchantId}
+                onOrderIngested={() => addToast('success', 'Order ingestion completed')}
             />
 
             {/* Authentication Modal */}

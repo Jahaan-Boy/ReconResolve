@@ -8,6 +8,7 @@ import {
     LogOut,
     LogIn,
     Sparkles,
+    Package,
 } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
@@ -27,6 +28,7 @@ interface ConsoleAppHeaderProps {
     apiSource: ApiSource;
     onToggleApiSource: (source: ApiSource) => void;
     onNavigateLanding: () => void;
+    onOpenOrderIngestion?: () => void;
 }
 
 export function ConsoleAppHeader({
@@ -40,6 +42,7 @@ export function ConsoleAppHeader({
     apiSource,
     onToggleApiSource,
     onNavigateLanding,
+    onOpenOrderIngestion,
 }: ConsoleAppHeaderProps) {
     const [merchantMenuOpen, setMerchantMenuOpen] = useState(false);
     const [operatorMenuOpen, setOperatorMenuOpen] = useState(false);
@@ -115,6 +118,19 @@ export function ConsoleAppHeader({
                             </span>
                         </button>
                     </div>
+
+                    {/* Order Ingestion Trigger */}
+                    {onOpenOrderIngestion && (
+                        <button
+                            type="button"
+                            onClick={onOpenOrderIngestion}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors shadow-2xs"
+                            title="Ingest and inspect merchant orders"
+                        >
+                            <Package className="size-3.5" />
+                            <span>Orders</span>
+                        </button>
+                    )}
 
                     {/* Merchant Tenant Selector */}
                     <div className="relative">
