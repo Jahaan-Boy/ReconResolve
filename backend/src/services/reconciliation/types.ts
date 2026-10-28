@@ -95,6 +95,8 @@ export interface ReconciliationRunSummary {
     excludedCount: number;
     durationMs: number;
     isReusedRun?: boolean;
+    createdAt?: Date;
+    completedAt?: Date;
 }
 
 export interface MatchBatchItem {
@@ -122,6 +124,10 @@ export interface ReconciliationRepository {
             unmatchedCount: number;
             ambiguousCount: number;
             excludedCount: number;
+            startedAt?: Date | null;
+            completedAt?: Date | null;
+            failureReason?: string | null;
+            createdAt?: Date;
         };
         isReused: boolean;
     }>;

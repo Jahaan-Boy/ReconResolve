@@ -15,6 +15,10 @@ import {
     createMerchantOrderRouter,
     type MerchantOrderRouterDeps,
 } from './routes/merchant-orders';
+import {
+    createReconciliationRunRouter,
+    type ReconciliationRunRouterDeps,
+} from './routes/runs';
 
 export interface AppDeps extends WebhookRouterDeps {
     exceptionRouterDeps?: ExceptionRouterDeps;
@@ -22,6 +26,7 @@ export interface AppDeps extends WebhookRouterDeps {
     providerConnectionRouterDeps?: ProviderConnectionRouterDeps;
     providerTransactionRouterDeps?: ProviderTransactionRouterDeps;
     merchantOrderRouterDeps?: MerchantOrderRouterDeps;
+    runRouterDeps?: ReconciliationRunRouterDeps;
 }
 
 export function buildApp(deps?: AppDeps): Application {
@@ -57,6 +62,7 @@ export function buildApp(deps?: AppDeps): Application {
     app.use('/api/merchants/:merchantId/connections', createProviderConnectionRouter(deps?.providerConnectionRouterDeps));
     app.use('/api/merchants/:merchantId/transactions', createProviderTransactionRouter(deps?.providerTransactionRouterDeps));
     app.use('/api/merchants/:merchantId/orders', createMerchantOrderRouter(deps?.merchantOrderRouterDeps));
+    app.use('/api/merchants/:merchantId/runs', createReconciliationRunRouter(deps?.runRouterDeps));
 
     return app;
 }

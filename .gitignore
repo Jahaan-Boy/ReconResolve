@@ -25,3 +25,10 @@ CLAUDE.md
 docs
 graphify-out
 test
+backend/test/
+backend/test/reconciliation-run-initiation.test.ts
+backend/test/auth.test.ts
+backend/test/tenant-isolation.test.ts
+
+# Day 12 implementation plan
+DAY_12_PLAN.md

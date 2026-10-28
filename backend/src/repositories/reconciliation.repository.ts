@@ -51,6 +51,10 @@ export function createReconciliationRepository(db: ReconciliationDb): Reconcilia
                         unmatchedCount: existing.unmatchedCount,
                         ambiguousCount: existing.ambiguousCount,
                         excludedCount: existing.excludedCount,
+                        startedAt: existing.startedAt,
+                        completedAt: existing.completedAt,
+                        failureReason: existing.failureReason,
+                        createdAt: existing.createdAt,
                     },
                     isReused: true,
                 };
@@ -58,39 +62,81 @@ export function createReconciliationRepository(db: ReconciliationDb): Reconcilia
 
             // Create new run in RUNNING status
             const now = new Date();
-            const created = await (db.reconciliationRun as any).create({
-                data: {
-                    merchantId,
-                    idempotencyKey,
-                    rulesetVersion,
-                    status: 'RUNNING',
-                    windowStart,
-                    windowEnd,
-                    startedAt: now,
-                    totalConsidered: 0,
-                    matchedCount: 0,
-                    unmatchedCount: 0,
-                    ambiguousCount: 0,
-                    excludedCount: 0,
-                },
-            });
+            try {
+                const created = await (db.reconciliationRun as any).create({
+                    data: {
+                        merchantId,
+                        idempotencyKey,
+                        rulesetVersion,
+                        status: 'RUNNING',
+                        windowStart,
+                        windowEnd,
+                        startedAt: now,
+                        totalConsidered: 0,
+                        matchedCount: 0,
+                        unmatchedCount: 0,
+                        ambiguousCount: 0,
+                        excludedCount: 0,
+                    },
+                });
 
-            return {
-                run: {
-                    id: created.id,
-                    merchantId: created.merchantId,
-                    status: created.status,
-                    windowStart: created.windowStart,
-                    windowEnd: created.windowEnd,
-                    rulesetVersion: created.rulesetVersion,
-                    totalConsidered: created.totalConsidered,
-                    matchedCount: created.matchedCount,
-                    unmatchedCount: created.unmatchedCount,
-                    ambiguousCount: created.ambiguousCount,
-                    excludedCount: created.excludedCount,
-                },
-                isReused: false,
-            };
+                return {
+                    run: {
+                        id: created.id,
+                        merchantId: created.merchantId,
+                        status: created.status,
+                        windowStart: created.windowStart,
+                        windowEnd: created.windowEnd,
+                        rulesetVersion: created.rulesetVersion,
+                        totalConsidered: created.totalConsidered,
+                        matchedCount: created.matchedCount,
+                        unmatchedCount: created.unmatchedCount,
+                        ambiguousCount: created.ambiguousCount,
+                        excludedCount: created.excludedCount,
+                        startedAt: created.startedAt,
+                        completedAt: created.completedAt,
+                        failureReason: created.failureReason,
+                        createdAt: created.createdAt,
+                    },
+                    isReused: false,
+                };
+            } catch (err: unknown) {
+                // If a concurrent request created the run at the exact same time, handle P2002
+                if (typeof err === 'object' && err !== null && (err as any).code === 'P2002') {
+                    const concurrentExisting = await (db.reconciliationRun as any).findUnique({
+                        where: {
+                            merchantId_idempotencyKey: {
+                                merchantId,
+                                idempotencyKey,
+                            },
+                        },
+                    });
+
+                    if (concurrentExisting) {
+                        return {
+                            run: {
+                                id: concurrentExisting.id,
+                                merchantId: concurrentExisting.merchantId,
+                                status: concurrentExisting.status,
+                                windowStart: concurrentExisting.windowStart,
+                                windowEnd: concurrentExisting.windowEnd,
+                                rulesetVersion: concurrentExisting.rulesetVersion,
+                                totalConsidered: concurrentExisting.totalConsidered,
+                                matchedCount: concurrentExisting.matchedCount,
+                                unmatchedCount: concurrentExisting.unmatchedCount,
+                                ambiguousCount: concurrentExisting.ambiguousCount,
+                                excludedCount: concurrentExisting.excludedCount,
+                                startedAt: concurrentExisting.startedAt,
+                                completedAt: concurrentExisting.completedAt,
+                                failureReason: concurrentExisting.failureReason,
+                                createdAt: concurrentExisting.createdAt,
+                            },
+                            isReused: true,
+                        };
+                    }
+                }
+                throw err;
+            }
         },
 
         async fetchEligibleTransactions(
