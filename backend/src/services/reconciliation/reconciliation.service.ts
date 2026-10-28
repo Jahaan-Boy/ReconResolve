@@ -5,6 +5,8 @@ import { sanitizeErrorMessage } from '../outbox/error-sanitizer';
 import { ReconciliationError } from './errors';
 import { evaluateMatch } from './matching-policy';
 import type {
+    ListMatchesFilter,
+    ListMatchesResult,
     ListRunsFilter,
     ListRunsResult,
     MatchBatchItem,
@@ -325,6 +327,30 @@ export class ReconciliationService {
             );
         }
         return run;
+    }
+
+    async listMatches(
+        merchantId: string,
+        runId: string,
+        filter: ListMatchesFilter,
+    ): Promise<ListMatchesResult> {
+        if (!merchantId || !UUID_REGEX.test(merchantId)) {
+            throw new ReconciliationError(
+                'RECON_INVALID_INPUT',
+                'merchantId must be a valid UUID',
+                ['merchantId'],
+            );
+        }
+
+        if (!runId || !UUID_REGEX.test(runId)) {
+            throw new ReconciliationError(
+                'RECON_INVALID_INPUT',
+                'runId must be a valid UUID',
+                ['runId'],
+            );
+        }
+
+        return this.repository.listMatches(merchantId, runId, filter);
     }
 }
 

@@ -170,6 +170,8 @@ export interface ReconciliationRepository {
     listRuns(merchantId: string, filter: ListRunsFilter): Promise<ListRunsResult>;
 
     findRunById(merchantId: string, runId: string): Promise<ReconciliationRunDetail | null>;
+
+    listMatches(merchantId: string, runId: string, filter: ListMatchesFilter): Promise<ListMatchesResult>;
 }
 
 export interface ListRunsFilter {
@@ -227,4 +229,54 @@ export interface ReconciliationRunDetail {
     createdAt: string;
     updatedAt: string;
 }
+
+export interface ListMatchesFilter {
+    ruleCode?: string;
+    cursor?: string;
+    limit?: number;
+}
+
+export interface LinkedProviderTxnInMatch {
+    id: string;
+    providerTxnId: string;
+    amountMinor: string;
+    currency: string;
+    status: string;
+    occurredAt: string;
+}
+
+export interface LinkedMerchantOrderInMatch {
+    id: string;
+    externalOrderId: string;
+    amountMinor: string;
+    currency: string;
+    status: string;
+    orderedAt: string;
+}
+
+export interface ReconciliationMatchSummary {
+    id: string;
+    merchantId: string;
+    reconciliationRunId: string;
+    providerTransactionId: string;
+    merchantOrderId: string;
+    ruleCode: string;
+    rulesetVersion: string;
+    evidence: unknown;
+    providerTransaction: LinkedProviderTxnInMatch;
+    merchantOrder: LinkedMerchantOrderInMatch;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ListMatchesResult {
+    items: ReconciliationMatchSummary[];
+    pagination: {
+        limit: number;
+        nextCursor: string | null;
+        hasMore: boolean;
+        totalCount: number;
+    };
+}
+
 

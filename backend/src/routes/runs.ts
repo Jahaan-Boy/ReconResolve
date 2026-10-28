@@ -80,6 +80,12 @@ const ListRunsQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
 }).strict();
 
+const ListMatchesQuerySchema = z.object({
+    ruleCode: z.string().trim().min(1).max(64).optional(),
+    cursor: z.string().regex(UUID_REGEX, 'Invalid UUID cursor').optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+}).strict();
+
 export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps = {}): Router {
     const router = Router({ mergeParams: true });
     const dbProvider = deps.getDb ?? getDB;
@@ -425,6 +431,35 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
 
             const detail = await service.getRun(trustedMerchantId, runId);
             res.status(200).json(detail);
+        } catch (err) {
+            handleRouteError(res, err);
+        }
+    });
+
+    /**
+     * GET /api/merchants/:merchantId/runs/:runId/matches
+     * List matched records for a specific run with bounded pagination and rule filtering.
+     * Permission: Any authenticated member of the merchant (OWNER, ADMIN, ANALYST, VIEWER).
+     */
+    router.get('/:runId/matches', async (req: Request, res: Response): Promise<void> => {
+        try {
+            const { merchantId, runId } = req.params;
+            validateMerchantParam(merchantId);
+            validateRunIdParam(runId);
+
+            const trustedMerchantId = req.auth!.merchant.id;
+            if (merchantId !== trustedMerchantId) {
+                res.status(404).json({
+                    error: 'NOT_FOUND',
+                    message: 'Merchant not found or access denied',
+                });
+                return;
+            }
+
+            const filter = ListMatchesQuerySchema.parse(req.query);
+
+            const result = await service.listMatches(trustedMerchantId, runId, filter);
+            res.status(200).json(result);
         } catch (err) {
             handleRouteError(res, err);
         }
