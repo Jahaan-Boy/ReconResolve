@@ -9,6 +9,7 @@ import {
     LogIn,
     Sparkles,
     Package,
+    GitCommit,
 } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
@@ -29,6 +30,7 @@ interface ConsoleAppHeaderProps {
     onToggleApiSource: (source: ApiSource) => void;
     onNavigateLanding: () => void;
     onOpenOrderIngestion?: () => void;
+    onOpenReconciliation?: () => void;
 }
 
 export function ConsoleAppHeader({
@@ -43,6 +45,7 @@ export function ConsoleAppHeader({
     onToggleApiSource,
     onNavigateLanding,
     onOpenOrderIngestion,
+    onOpenReconciliation,
 }: ConsoleAppHeaderProps) {
     const [merchantMenuOpen, setMerchantMenuOpen] = useState(false);
     const [operatorMenuOpen, setOperatorMenuOpen] = useState(false);
@@ -129,6 +132,19 @@ export function ConsoleAppHeader({
                         >
                             <Package className="size-3.5" />
                             <span>Orders</span>
+                        </button>
+                    )}
+
+                    {/* Reconciliation Hub Trigger */}
+                    {onOpenReconciliation && (
+                        <button
+                            type="button"
+                            onClick={onOpenReconciliation}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors shadow-2xs"
+                            title="Inspect reconciliation runs and execute matching"
+                        >
+                            <GitCommit className="size-3.5" />
+                            <span>Reconciliation</span>
                         </button>
                     )}
 

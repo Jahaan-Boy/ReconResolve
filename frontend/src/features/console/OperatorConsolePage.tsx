@@ -10,6 +10,7 @@ import { ExceptionQueue } from './ExceptionQueue';
 import { ExceptionInspector } from './ExceptionInspector';
 import { ExceptionActionDialog } from './ExceptionActionDialog';
 import { OrderIngestionDialog } from './OrderIngestionDialog';
+import { ReconciliationDialog } from './ReconciliationDialog';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
 import {
@@ -56,6 +57,8 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     const [permittedMerchants, setPermittedMerchants] = useState<PermittedMerchant[]>([]);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+    const [isReconModalOpen, setIsReconModalOpen] = useState(false);
+    const [selectedReconRunId, setSelectedReconRunId] = useState<string | null>(null);
 
     const [operatorContext, setOperatorContext] = useState<OperatorContext>({
         operatorId: 'operator-sarah',
@@ -183,6 +186,8 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         setDetail(null);
         setSelectedId(null);
         setIsAuthModalOpen(true);
+        setIsReconModalOpen(false);
+        setSelectedReconRunId(null);
         addToast('info', 'Logged out successfully');
     };
 
@@ -347,6 +352,8 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
             cursor: undefined,
         }));
         setShowMobileDetail(false);
+        setIsReconModalOpen(false);
+        setSelectedReconRunId(null);
 
         const found = permittedMerchants.find((m) => m.id === newMerchantId);
         if (found) {
@@ -535,6 +542,10 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 onToggleApiSource={(src) => adaptiveApiClient.setSource(src)}
                 onNavigateLanding={onNavigateLanding}
                 onOpenOrderIngestion={() => setIsOrderModalOpen(true)}
+                onOpenReconciliation={() => {
+                    setSelectedReconRunId(null);
+                    setIsReconModalOpen(true);
+                }}
             />
 
             {/* Workbench Body */}
@@ -580,6 +591,10 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                             onTriggerAction={handleTriggerAction}
                             actionInProgress={isSubmittingAction}
                             onCloseInspector={() => setShowMobileDetail(false)}
+                            onInspectRun={(runId) => {
+                                setSelectedReconRunId(runId);
+                                setIsReconModalOpen(true);
+                            }}
                         />
                     </div>
                 </div>
@@ -612,6 +627,18 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 isOpen={isAuthModalOpen}
                 onClose={() => setIsAuthModalOpen(false)}
                 onLoginSuccess={handleLoginSuccess}
+            />
+
+            {/* Reconciliation Hub Modal */}
+            <ReconciliationDialog
+                isOpen={isReconModalOpen}
+                onClose={() => {
+                    setIsReconModalOpen(false);
+                    setSelectedReconRunId(null);
+                }}
+                merchantId={merchantId}
+                operatorRole={operatorContext.role}
+                initialRunId={selectedReconRunId}
             />
 
             {/* Toast Container */}
