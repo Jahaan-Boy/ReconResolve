@@ -26,6 +26,7 @@ graphify-out
 test
 test/
 test/reconciliation-run-initiation.test.ts
+test/reconciliation-run-read.test.ts
 test/auth.test.ts
 test/tenant-isolation.test.ts
 

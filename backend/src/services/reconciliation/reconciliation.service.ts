@@ -5,8 +5,11 @@ import { sanitizeErrorMessage } from '../outbox/error-sanitizer';
 import { ReconciliationError } from './errors';
 import { evaluateMatch } from './matching-policy';
 import type {
+    ListRunsFilter,
+    ListRunsResult,
     MatchBatchItem,
     ReconciliationRepository,
+    ReconciliationRunDetail,
     ReconciliationRunSummary,
     StartReconciliationInput,
 } from './types';
@@ -306,6 +309,22 @@ export class ReconciliationService {
                 error,
             );
         }
+    }
+
+    async listRuns(merchantId: string, filter: ListRunsFilter): Promise<ListRunsResult> {
+        return this.repository.listRuns(merchantId, filter);
+    }
+
+    async getRun(merchantId: string, runId: string): Promise<ReconciliationRunDetail> {
+        const run = await this.repository.findRunById(merchantId, runId);
+        if (!run) {
+            throw new ReconciliationError(
+                'RECON_RUN_NOT_FOUND',
+                'Reconciliation run not found or access denied',
+                ['runId'],
+            );
+        }
+        return run;
     }
 }
 

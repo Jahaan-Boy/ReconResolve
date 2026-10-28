@@ -166,4 +166,65 @@ export interface ReconciliationRepository {
         },
         failureReason?: string,
     ): Promise<void>;
+
+    listRuns(merchantId: string, filter: ListRunsFilter): Promise<ListRunsResult>;
+
+    findRunById(merchantId: string, runId: string): Promise<ReconciliationRunDetail | null>;
 }
+
+export interface ListRunsFilter {
+    status?: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+    from?: Date;
+    to?: Date;
+    cursor?: string;
+    limit?: number;
+}
+
+export interface ReconciliationRunListItem {
+    id: string;
+    merchantId: string;
+    status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+    rulesetVersion: string;
+    windowStart: string;
+    windowEnd: string;
+    totalConsidered: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    ambiguousCount: number;
+    excludedCount: number;
+    failureReason: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ListRunsResult {
+    items: ReconciliationRunListItem[];
+    pagination: {
+        limit: number;
+        nextCursor: string | null;
+        hasMore: boolean;
+        totalCount: number;
+    };
+}
+
+export interface ReconciliationRunDetail {
+    id: string;
+    merchantId: string;
+    status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+    rulesetVersion: string;
+    windowStart: string;
+    windowEnd: string;
+    totalConsidered: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    ambiguousCount: number;
+    excludedCount: number;
+    failureReason: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+

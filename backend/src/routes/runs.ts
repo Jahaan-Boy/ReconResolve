@@ -64,6 +64,22 @@ const InitiateRunBodySchema = z.object({
     options: RunOptionsSchema.optional(),
 }).strict();
 
+const ListRunsQuerySchema = z.object({
+    status: z.enum(['PENDING', 'RUNNING', 'COMPLETED', 'FAILED']).optional(),
+    from: z
+        .string()
+        .datetime({ message: '"from" must be a valid ISO 8601 datetime' })
+        .optional()
+        .transform((val) => (val ? new Date(val) : undefined)),
+    to: z
+        .string()
+        .datetime({ message: '"to" must be a valid ISO 8601 datetime' })
+        .optional()
+        .transform((val) => (val ? new Date(val) : undefined)),
+    cursor: z.string().regex(UUID_REGEX, 'Invalid UUID cursor').optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+}).strict();
+
 export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps = {}): Router {
     const router = Router({ mergeParams: true });
     const dbProvider = deps.getDb ?? getDB;
@@ -125,6 +141,12 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
                         message: err.message,
                     });
                     return;
+                case 'RECON_RUN_NOT_FOUND':
+                    res.status(404).json({
+                        error: 'NOT_FOUND',
+                        message: 'Reconciliation run not found or access denied',
+                    });
+                    return;
                 case 'RECON_PERSISTENCE_FAILED':
                 default:
                     res.status(500).json({
@@ -148,6 +170,16 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
                 'RECON_INVALID_INPUT',
                 'Invalid merchantId parameter: must be a valid UUID',
                 ['merchantId'],
+            );
+        }
+    }
+
+    function validateRunIdParam(runId: string): void {
+        if (!UUID_REGEX.test(runId)) {
+            throw new ReconciliationError(
+                'RECON_INVALID_INPUT',
+                'Invalid runId parameter: must be a valid UUID',
+                ['runId'],
             );
         }
     }
@@ -334,6 +366,69 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
             }
         },
     );
+
+    /**
+     * GET /api/merchants/:merchantId/runs
+     * List reconciliation runs with bounded pagination and allowlisted filters.
+     * Permission: Any authenticated member of the merchant (OWNER, ADMIN, ANALYST, VIEWER).
+     */
+    router.get('/', async (req: Request, res: Response): Promise<void> => {
+        try {
+            const { merchantId } = req.params;
+            validateMerchantParam(merchantId);
+
+            const trustedMerchantId = req.auth!.merchant.id;
+            if (merchantId !== trustedMerchantId) {
+                res.status(404).json({
+                    error: 'NOT_FOUND',
+                    message: 'Merchant not found or access denied',
+                });
+                return;
+            }
+
+            const filter = ListRunsQuerySchema.parse(req.query);
+
+            if (filter.from && filter.to && filter.to < filter.from) {
+                res.status(400).json({
+                    error: 'VALIDATION_FAILED',
+                    message: 'Invalid date range: "from" timestamp must be earlier than or equal to "to" timestamp',
+                });
+                return;
+            }
+
+            const result = await service.listRuns(trustedMerchantId, filter);
+            res.status(200).json(result);
+        } catch (err) {
+            handleRouteError(res, err);
+        }
+    });
+
+    /**
+     * GET /api/merchants/:merchantId/runs/:runId
+     * Get run summary, status, counters, timestamps, and sanitized failure reason.
+     * Permission: Any authenticated member of the merchant (OWNER, ADMIN, ANALYST, VIEWER).
+     */
+    router.get('/:runId', async (req: Request, res: Response): Promise<void> => {
+        try {
+            const { merchantId, runId } = req.params;
+            validateMerchantParam(merchantId);
+            validateRunIdParam(runId);
+
+            const trustedMerchantId = req.auth!.merchant.id;
+            if (merchantId !== trustedMerchantId) {
+                res.status(404).json({
+                    error: 'NOT_FOUND',
+                    message: 'Merchant not found or access denied',
+                });
+                return;
+            }
+
+            const detail = await service.getRun(trustedMerchantId, runId);
+            res.status(200).json(detail);
+        } catch (err) {
+            handleRouteError(res, err);
+        }
+    });
 
     return router;
 }

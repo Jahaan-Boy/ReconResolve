@@ -6,6 +6,7 @@ export const RECONCILIATION_ERROR_CODES = [
     'RECON_IDEMPOTENCY_CONFLICT',
     'RECON_RUN_IN_PROGRESS',
     'RECON_RUN_FAILED',
+    'RECON_RUN_NOT_FOUND',
 ] as const;
 
 export type ReconciliationErrorCode = (typeof RECONCILIATION_ERROR_CODES)[number];
