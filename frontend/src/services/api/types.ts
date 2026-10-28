@@ -337,3 +337,115 @@ export interface BatchIngestResult {
     results: BatchItemResult[];
 }
 
+// ---------------------------------------------------------------------------
+// Reconciliation Run & Match Types (Day 12)
+// ---------------------------------------------------------------------------
+
+export type ReconciliationRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface ReconciliationRunSummary {
+    id: string;
+    merchantId: string;
+    status: ReconciliationRunStatus;
+    rulesetVersion: string;
+    windowStart: string;
+    windowEnd: string;
+    totalConsidered: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    ambiguousCount: number;
+    excludedCount: number;
+    failureReason: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface InitiateRunInput {
+    idempotencyKey?: string;
+    from?: string;
+    to?: string;
+    providerConnectionId?: string;
+    rulesetVersion?: string;
+    batchSize?: number;
+    timeWindowToleranceMs?: number;
+}
+
+export interface InitiateRunResult {
+    outcome: 'created' | 'reused';
+    run: {
+        id: string;
+        merchantId: string;
+        status: ReconciliationRunStatus;
+        windowStart: string;
+        windowEnd: string;
+        rulesetVersion: string;
+        totalConsidered: number;
+        matchedCount: number;
+        unmatchedCount: number;
+        ambiguousCount: number;
+        excludedCount: number;
+        durationMs?: number;
+        createdAt?: string;
+        completedAt?: string;
+    };
+}
+
+export interface ListRunsFilter {
+    status?: ReconciliationRunStatus;
+    from?: string;
+    to?: string;
+    cursor?: string;
+    limit?: number;
+}
+
+export interface ListRunsResult {
+    items: ReconciliationRunSummary[];
+    pagination: PaginationMetadata;
+}
+
+export interface LinkedProviderTxnInMatch {
+    id: string;
+    providerTxnId: string;
+    amountMinor: string;
+    currency: string;
+    status: string;
+    occurredAt: string;
+}
+
+export interface LinkedMerchantOrderInMatch {
+    id: string;
+    externalOrderId: string;
+    amountMinor: string;
+    currency: string;
+    status: string;
+    orderedAt: string;
+}
+
+export interface ReconciliationMatchSummary {
+    id: string;
+    merchantId: string;
+    reconciliationRunId: string;
+    providerTransactionId: string;
+    merchantOrderId: string;
+    ruleCode: string;
+    rulesetVersion: string;
+    evidence: Record<string, unknown> | null;
+    providerTransaction: LinkedProviderTxnInMatch;
+    merchantOrder: LinkedMerchantOrderInMatch;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ListMatchesFilter {
+    ruleCode?: string;
+    cursor?: string;
+    limit?: number;
+}
+
+export interface ListMatchesResult {
+    items: ReconciliationMatchSummary[];
+    pagination: PaginationMetadata;
+}
+

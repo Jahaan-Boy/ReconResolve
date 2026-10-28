@@ -24,3 +24,12 @@ Thumbs.db
 docs
 graphify-out
 test
+test/
+test/reconciliation-run-initiation.test.ts
+test/reconciliation-run-read.test.ts
+test/reconciliation-run-matches.test.ts
+test/auth.test.ts
+test/tenant-isolation.test.ts
+
+# Day 12 implementation plan
+DAY_12_PLAN.md

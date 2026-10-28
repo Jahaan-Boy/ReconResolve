@@ -1,19 +1,30 @@
 import type { Prisma, PrismaClient } from '../generated/prisma';
+import { ReconciliationError } from '../services/reconciliation/errors';
 import type {
     CandidateOrder,
+    ListMatchesFilter,
+    ListMatchesResult,
+    ListRunsFilter,
+    ListRunsResult,
     MatchBatchItem,
+    ReconciliationMatchSummary,
     ReconciliationRepository,
+    ReconciliationRunDetail,
+    ReconciliationRunListItem,
     ReconciliationTransaction,
 } from '../services/reconciliation/types';
 
 export interface ReconciliationDb {
     reconciliationRun: Pick<
         PrismaClient['reconciliationRun'],
-        'findUnique' | 'create' | 'update'
+        'findUnique' | 'create' | 'update' | 'findMany' | 'count' | 'findFirst'
     >;
     providerTransaction: Pick<PrismaClient['providerTransaction'], 'findMany'>;
     merchantOrder: Pick<PrismaClient['merchantOrder'], 'findMany'>;
-    reconciliationMatch: { createMany: (args: any) => Promise<any> };
+    reconciliationMatch: Pick<
+        PrismaClient['reconciliationMatch'],
+        'createMany' | 'findMany' | 'count'
+    >;
     reconciliationException: Pick<PrismaClient['reconciliationException'], 'createMany'>;
     $transaction<T>(fn: (tx: any) => Promise<T>): Promise<T>;
 }
@@ -51,6 +62,10 @@ export function createReconciliationRepository(db: ReconciliationDb): Reconcilia
                         unmatchedCount: existing.unmatchedCount,
                         ambiguousCount: existing.ambiguousCount,
                         excludedCount: existing.excludedCount,
+                        startedAt: existing.startedAt,
+                        completedAt: existing.completedAt,
+                        failureReason: existing.failureReason,
+                        createdAt: existing.createdAt,
                     },
                     isReused: true,
                 };
@@ -58,39 +73,81 @@ export function createReconciliationRepository(db: ReconciliationDb): Reconcilia
 
             // Create new run in RUNNING status
             const now = new Date();
-            const created = await (db.reconciliationRun as any).create({
-                data: {
-                    merchantId,
-                    idempotencyKey,
-                    rulesetVersion,
-                    status: 'RUNNING',
-                    windowStart,
-                    windowEnd,
-                    startedAt: now,
-                    totalConsidered: 0,
-                    matchedCount: 0,
-                    unmatchedCount: 0,
-                    ambiguousCount: 0,
-                    excludedCount: 0,
-                },
-            });
+            try {
+                const created = await (db.reconciliationRun as any).create({
+                    data: {
+                        merchantId,
+                        idempotencyKey,
+                        rulesetVersion,
+                        status: 'RUNNING',
+                        windowStart,
+                        windowEnd,
+                        startedAt: now,
+                        totalConsidered: 0,
+                        matchedCount: 0,
+                        unmatchedCount: 0,
+                        ambiguousCount: 0,
+                        excludedCount: 0,
+                    },
+                });
 
-            return {
-                run: {
-                    id: created.id,
-                    merchantId: created.merchantId,
-                    status: created.status,
-                    windowStart: created.windowStart,
-                    windowEnd: created.windowEnd,
-                    rulesetVersion: created.rulesetVersion,
-                    totalConsidered: created.totalConsidered,
-                    matchedCount: created.matchedCount,
-                    unmatchedCount: created.unmatchedCount,
-                    ambiguousCount: created.ambiguousCount,
-                    excludedCount: created.excludedCount,
-                },
-                isReused: false,
-            };
+                return {
+                    run: {
+                        id: created.id,
+                        merchantId: created.merchantId,
+                        status: created.status,
+                        windowStart: created.windowStart,
+                        windowEnd: created.windowEnd,
+                        rulesetVersion: created.rulesetVersion,
+                        totalConsidered: created.totalConsidered,
+                        matchedCount: created.matchedCount,
+                        unmatchedCount: created.unmatchedCount,
+                        ambiguousCount: created.ambiguousCount,
+                        excludedCount: created.excludedCount,
+                        startedAt: created.startedAt,
+                        completedAt: created.completedAt,
+                        failureReason: created.failureReason,
+                        createdAt: created.createdAt,
+                    },
+                    isReused: false,
+                };
+            } catch (err: unknown) {
+                // If a concurrent request created the run at the exact same time, handle P2002
+                if (typeof err === 'object' && err !== null && (err as any).code === 'P2002') {
+                    const concurrentExisting = await (db.reconciliationRun as any).findUnique({
+                        where: {
+                            merchantId_idempotencyKey: {
+                                merchantId,
+                                idempotencyKey,
+                            },
+                        },
+                    });
+
+                    if (concurrentExisting) {
+                        return {
+                            run: {
+                                id: concurrentExisting.id,
+                                merchantId: concurrentExisting.merchantId,
+                                status: concurrentExisting.status,
+                                windowStart: concurrentExisting.windowStart,
+                                windowEnd: concurrentExisting.windowEnd,
+                                rulesetVersion: concurrentExisting.rulesetVersion,
+                                totalConsidered: concurrentExisting.totalConsidered,
+                                matchedCount: concurrentExisting.matchedCount,
+                                unmatchedCount: concurrentExisting.unmatchedCount,
+                                ambiguousCount: concurrentExisting.ambiguousCount,
+                                excludedCount: concurrentExisting.excludedCount,
+                                startedAt: concurrentExisting.startedAt,
+                                completedAt: concurrentExisting.completedAt,
+                                failureReason: concurrentExisting.failureReason,
+                                createdAt: concurrentExisting.createdAt,
+                            },
+                            isReused: true,
+                        };
+                    }
+                }
+                throw err;
+            }
         },
 
         async fetchEligibleTransactions(
@@ -287,6 +344,292 @@ export function createReconciliationRepository(db: ReconciliationDb): Reconcilia
                     failureReason: failureReason ?? null,
                 },
             });
+        },
+
+        async listRuns(merchantId: string, filter: ListRunsFilter): Promise<ListRunsResult> {
+            const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
+
+            const where: any = {
+                merchantId, // Strict tenant isolation
+            };
+
+            if (filter.status) {
+                where.status = filter.status;
+            }
+
+            if (filter.from || filter.to) {
+                where.createdAt = {};
+                if (filter.from) {
+                    where.createdAt.gte = filter.from;
+                }
+                if (filter.to) {
+                    where.createdAt.lte = filter.to;
+                }
+            }
+
+            try {
+                const [totalCount, rows] = await Promise.all([
+                    (db.reconciliationRun as any).count({ where }),
+                    (db.reconciliationRun as any).findMany({
+                        where,
+                        select: {
+                            id: true,
+                            merchantId: true,
+                            status: true,
+                            rulesetVersion: true,
+                            windowStart: true,
+                            windowEnd: true,
+                            totalConsidered: true,
+                            matchedCount: true,
+                            unmatchedCount: true,
+                            ambiguousCount: true,
+                            excludedCount: true,
+                            failureReason: true,
+                            startedAt: true,
+                            completedAt: true,
+                            createdAt: true,
+                            updatedAt: true,
+                        },
+                        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                        take: limit + 1,
+                        ...(filter.cursor
+                            ? {
+                                  cursor: { id: filter.cursor },
+                                  skip: 1,
+                              }
+                            : {}),
+                    }),
+                ]);
+
+                const hasMore = rows.length > limit;
+                const itemsToReturn = hasMore ? rows.slice(0, limit) : rows;
+                const nextCursor =
+                    hasMore && itemsToReturn.length > 0
+                        ? itemsToReturn[itemsToReturn.length - 1].id
+                        : null;
+
+                const items: ReconciliationRunListItem[] = itemsToReturn.map((r: any) => ({
+                    id: r.id,
+                    merchantId: r.merchantId,
+                    status: r.status,
+                    rulesetVersion: r.rulesetVersion,
+                    windowStart: r.windowStart.toISOString(),
+                    windowEnd: r.windowEnd.toISOString(),
+                    totalConsidered: r.totalConsidered,
+                    matchedCount: r.matchedCount,
+                    unmatchedCount: r.unmatchedCount,
+                    ambiguousCount: r.ambiguousCount,
+                    excludedCount: r.excludedCount,
+                    failureReason: r.failureReason ?? null,
+                    startedAt: r.startedAt ? r.startedAt.toISOString() : null,
+                    completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+                    createdAt: r.createdAt.toISOString(),
+                    updatedAt: r.updatedAt.toISOString(),
+                }));
+
+                return {
+                    items,
+                    pagination: {
+                        limit,
+                        nextCursor,
+                        hasMore,
+                        totalCount,
+                    },
+                };
+            } catch (err: any) {
+                if (err?.code === 'P2025') {
+                    throw new ReconciliationError(
+                        'RECON_INVALID_INPUT',
+                        'Invalid cursor: cursor position does not exist',
+                        ['cursor'],
+                    );
+                }
+                throw err;
+            }
+        },
+
+        async findRunById(merchantId: string, runId: string): Promise<ReconciliationRunDetail | null> {
+            const r = await (db.reconciliationRun as any).findFirst({
+                where: {
+                    id: runId,
+                    merchantId, // Strict tenant ownership
+                },
+                select: {
+                    id: true,
+                    merchantId: true,
+                    status: true,
+                    rulesetVersion: true,
+                    windowStart: true,
+                    windowEnd: true,
+                    totalConsidered: true,
+                    matchedCount: true,
+                    unmatchedCount: true,
+                    ambiguousCount: true,
+                    excludedCount: true,
+                    failureReason: true,
+                    startedAt: true,
+                    completedAt: true,
+                    createdAt: true,
+                    updatedAt: true,
+                },
+            });
+
+            if (!r) {
+                return null;
+            }
+
+            return {
+                id: r.id,
+                merchantId: r.merchantId,
+                status: r.status,
+                rulesetVersion: r.rulesetVersion,
+                windowStart: r.windowStart.toISOString(),
+                windowEnd: r.windowEnd.toISOString(),
+                totalConsidered: r.totalConsidered,
+                matchedCount: r.matchedCount,
+                unmatchedCount: r.unmatchedCount,
+                ambiguousCount: r.ambiguousCount,
+                excludedCount: r.excludedCount,
+                failureReason: r.failureReason ?? null,
+                startedAt: r.startedAt ? r.startedAt.toISOString() : null,
+                completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+                createdAt: r.createdAt.toISOString(),
+                updatedAt: r.updatedAt.toISOString(),
+            };
+        },
+
+        async listMatches(
+            merchantId: string,
+            runId: string,
+            filter: ListMatchesFilter,
+        ): Promise<ListMatchesResult> {
+            // 1. Verify run exists and belongs to this merchant (defense against foreign tenant access)
+            const run = await (db.reconciliationRun as any).findFirst({
+                where: {
+                    id: runId,
+                    merchantId,
+                },
+                select: { id: true },
+            });
+
+            if (!run) {
+                throw new ReconciliationError(
+                    'RECON_RUN_NOT_FOUND',
+                    'Reconciliation run not found or access denied',
+                    ['runId'],
+                );
+            }
+
+            const limit = Math.max(1, Math.min(filter.limit ?? 25, 100));
+            const whereClause: any = {
+                merchantId,
+                reconciliationRunId: runId,
+                ...(filter.ruleCode ? { ruleCode: filter.ruleCode } : {}),
+            };
+
+            try {
+                const [totalCount, rows] = await Promise.all([
+                    (db.reconciliationMatch as any).count({ where: whereClause }),
+                    (db.reconciliationMatch as any).findMany({
+                        where: whereClause,
+                        select: {
+                            id: true,
+                            merchantId: true,
+                            reconciliationRunId: true,
+                            providerTransactionId: true,
+                            merchantOrderId: true,
+                            ruleCode: true,
+                            rulesetVersion: true,
+                            evidence: true,
+                            createdAt: true,
+                            updatedAt: true,
+                            providerTransaction: {
+                                select: {
+                                    id: true,
+                                    providerTxnId: true,
+                                    amountMinor: true,
+                                    currency: true,
+                                    status: true,
+                                    occurredAt: true,
+                                },
+                            },
+                            merchantOrder: {
+                                select: {
+                                    id: true,
+                                    externalOrderId: true,
+                                    amountMinor: true,
+                                    currency: true,
+                                    status: true,
+                                    orderedAt: true,
+                                },
+                            },
+                        },
+                        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                        take: limit + 1,
+                        ...(filter.cursor
+                            ? {
+                                  cursor: { id: filter.cursor },
+                                  skip: 1,
+                              }
+                            : {}),
+                    }),
+                ]);
+
+                const hasMore = rows.length > limit;
+                const itemsToReturn = hasMore ? rows.slice(0, limit) : rows;
+                const nextCursor =
+                    hasMore && itemsToReturn.length > 0
+                        ? itemsToReturn[itemsToReturn.length - 1].id
+                        : null;
+
+                const items: ReconciliationMatchSummary[] = itemsToReturn.map((m: any) => ({
+                    id: m.id,
+                    merchantId: m.merchantId,
+                    reconciliationRunId: m.reconciliationRunId,
+                    providerTransactionId: m.providerTransactionId,
+                    merchantOrderId: m.merchantOrderId,
+                    ruleCode: m.ruleCode,
+                    rulesetVersion: m.rulesetVersion,
+                    evidence: m.evidence,
+                    providerTransaction: {
+                        id: m.providerTransaction.id,
+                        providerTxnId: m.providerTransaction.providerTxnId,
+                        amountMinor: m.providerTransaction.amountMinor.toString(),
+                        currency: m.providerTransaction.currency,
+                        status: m.providerTransaction.status,
+                        occurredAt: m.providerTransaction.occurredAt.toISOString(),
+                    },
+                    merchantOrder: {
+                        id: m.merchantOrder.id,
+                        externalOrderId: m.merchantOrder.externalOrderId,
+                        amountMinor: m.merchantOrder.amountMinor.toString(),
+                        currency: m.merchantOrder.currency,
+                        status: m.merchantOrder.status,
+                        orderedAt: m.merchantOrder.orderedAt.toISOString(),
+                    },
+                    createdAt: m.createdAt.toISOString(),
+                    updatedAt: m.updatedAt.toISOString(),
+                }));
+
+                return {
+                    items,
+                    pagination: {
+                        limit,
+                        nextCursor,
+                        hasMore,
+                        totalCount,
+                    },
+                };
+            } catch (err: any) {
+                if (err?.code === 'P2025') {
+                    throw new ReconciliationError(
+                        'RECON_INVALID_INPUT',
+                        'Invalid cursor: cursor position does not exist',
+                        ['cursor'],
+                    );
+                }
+                throw err;
+            }
         },
     };
 }

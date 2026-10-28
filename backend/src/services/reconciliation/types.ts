@@ -95,6 +95,8 @@ export interface ReconciliationRunSummary {
     excludedCount: number;
     durationMs: number;
     isReusedRun?: boolean;
+    createdAt?: Date;
+    completedAt?: Date;
 }
 
 export interface MatchBatchItem {
@@ -122,6 +124,10 @@ export interface ReconciliationRepository {
             unmatchedCount: number;
             ambiguousCount: number;
             excludedCount: number;
+            startedAt?: Date | null;
+            completedAt?: Date | null;
+            failureReason?: string | null;
+            createdAt?: Date;
         };
         isReused: boolean;
     }>;
@@ -160,4 +166,117 @@ export interface ReconciliationRepository {
         },
         failureReason?: string,
     ): Promise<void>;
+
+    listRuns(merchantId: string, filter: ListRunsFilter): Promise<ListRunsResult>;
+
+    findRunById(merchantId: string, runId: string): Promise<ReconciliationRunDetail | null>;
+
+    listMatches(merchantId: string, runId: string, filter: ListMatchesFilter): Promise<ListMatchesResult>;
 }
+
+export interface ListRunsFilter {
+    status?: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+    from?: Date;
+    to?: Date;
+    cursor?: string;
+    limit?: number;
+}
+
+export interface ReconciliationRunListItem {
+    id: string;
+    merchantId: string;
+    status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+    rulesetVersion: string;
+    windowStart: string;
+    windowEnd: string;
+    totalConsidered: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    ambiguousCount: number;
+    excludedCount: number;
+    failureReason: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ListRunsResult {
+    items: ReconciliationRunListItem[];
+    pagination: {
+        limit: number;
+        nextCursor: string | null;
+        hasMore: boolean;
+        totalCount: number;
+    };
+}
+
+export interface ReconciliationRunDetail {
+    id: string;
+    merchantId: string;
+    status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+    rulesetVersion: string;
+    windowStart: string;
+    windowEnd: string;
+    totalConsidered: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    ambiguousCount: number;
+    excludedCount: number;
+    failureReason: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ListMatchesFilter {
+    ruleCode?: string;
+    cursor?: string;
+    limit?: number;
+}
+
+export interface LinkedProviderTxnInMatch {
+    id: string;
+    providerTxnId: string;
+    amountMinor: string;
+    currency: string;
+    status: string;
+    occurredAt: string;
+}
+
+export interface LinkedMerchantOrderInMatch {
+    id: string;
+    externalOrderId: string;
+    amountMinor: string;
+    currency: string;
+    status: string;
+    orderedAt: string;
+}
+
+export interface ReconciliationMatchSummary {
+    id: string;
+    merchantId: string;
+    reconciliationRunId: string;
+    providerTransactionId: string;
+    merchantOrderId: string;
+    ruleCode: string;
+    rulesetVersion: string;
+    evidence: unknown;
+    providerTransaction: LinkedProviderTxnInMatch;
+    merchantOrder: LinkedMerchantOrderInMatch;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ListMatchesResult {
+    items: ReconciliationMatchSummary[];
+    pagination: {
+        limit: number;
+        nextCursor: string | null;
+        hasMore: boolean;
+        totalCount: number;
+    };
+}
+
+

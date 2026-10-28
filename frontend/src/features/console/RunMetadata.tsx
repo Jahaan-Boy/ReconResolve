@@ -5,9 +5,10 @@ import { formatTimestamp, truncateId } from '@/lib/formatters';
 
 interface RunMetadataProps {
     run?: LinkedReconciliationRunSummary | null;
+    onInspectRun?: (runId: string) => void;
 }
 
-export function RunMetadata({ run }: RunMetadataProps) {
+export function RunMetadata({ run, onInspectRun }: RunMetadataProps) {
     const [open, setOpen] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -87,6 +88,19 @@ export function RunMetadata({ run }: RunMetadataProps) {
                         <span className="text-slate-500">Status</span>
                         <span className="font-semibold text-emerald-700">{run.status}</span>
                     </div>
+
+                    {onInspectRun && (
+                        <div className="pt-2 border-t border-slate-100 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => onInspectRun(run.id)}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition"
+                            >
+                                <GitCommit className="size-3.5" />
+                                <span>Inspect in Reconciliation Hub</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

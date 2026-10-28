@@ -1,10 +1,17 @@
 import type { PrismaClient } from '../../generated/prisma';
+import { getDB } from '../../db/postgres';
+import { createReconciliationRepository } from '../../repositories/reconciliation.repository';
 import { sanitizeErrorMessage } from '../outbox/error-sanitizer';
 import { ReconciliationError } from './errors';
 import { evaluateMatch } from './matching-policy';
 import type {
+    ListMatchesFilter,
+    ListMatchesResult,
+    ListRunsFilter,
+    ListRunsResult,
     MatchBatchItem,
     ReconciliationRepository,
+    ReconciliationRunDetail,
     ReconciliationRunSummary,
     StartReconciliationInput,
 } from './types';
@@ -133,22 +140,67 @@ export class ReconciliationService {
             rulesetVersion,
         );
 
-        if (isReused && run.status === 'COMPLETED') {
-            return {
-                runId: run.id,
-                merchantId: run.merchantId,
-                status: 'COMPLETED',
-                windowStart: run.windowStart,
-                windowEnd: run.windowEnd,
-                rulesetVersion: run.rulesetVersion,
-                totalConsidered: run.totalConsidered,
-                matchedCount: run.matchedCount,
-                unmatchedCount: run.unmatchedCount,
-                ambiguousCount: run.ambiguousCount,
-                excludedCount: run.excludedCount,
-                durationMs: Date.now() - startTime,
-                isReusedRun: true,
-            };
+        if (isReused) {
+            // Check for conflicting request semantics
+            if (run.rulesetVersion !== rulesetVersion) {
+                throw new ReconciliationError(
+                    'RECON_IDEMPOTENCY_CONFLICT',
+                    `Idempotency key was previously used with rulesetVersion "${run.rulesetVersion}", but received "${rulesetVersion}"`,
+                    ['rulesetVersion'],
+                );
+            }
+
+            if (input.from && Math.abs(run.windowStart.getTime() - windowStart.getTime()) > 1000) {
+                throw new ReconciliationError(
+                    'RECON_IDEMPOTENCY_CONFLICT',
+                    'Idempotency key was previously used with a different "from" window timestamp',
+                    ['from'],
+                );
+            }
+
+            if (input.to && Math.abs(run.windowEnd.getTime() - windowEnd.getTime()) > 1000) {
+                throw new ReconciliationError(
+                    'RECON_IDEMPOTENCY_CONFLICT',
+                    'Idempotency key was previously used with a different "to" window timestamp',
+                    ['to'],
+                );
+            }
+
+            if (run.status === 'RUNNING') {
+                throw new ReconciliationError(
+                    'RECON_RUN_IN_PROGRESS',
+                    `A reconciliation run with idempotency key "${input.idempotencyKey.trim()}" is currently in progress`,
+                    ['idempotencyKey'],
+                );
+            }
+
+            if (run.status === 'FAILED') {
+                throw new ReconciliationError(
+                    'RECON_RUN_FAILED',
+                    `Previous reconciliation run with idempotency key "${input.idempotencyKey.trim()}" failed (${run.failureReason || 'unknown reason'}). A new idempotency key is required to retry.`,
+                    ['idempotencyKey'],
+                );
+            }
+
+            if (run.status === 'COMPLETED') {
+                return {
+                    runId: run.id,
+                    merchantId: run.merchantId,
+                    status: 'COMPLETED',
+                    windowStart: run.windowStart,
+                    windowEnd: run.windowEnd,
+                    rulesetVersion: run.rulesetVersion,
+                    totalConsidered: run.totalConsidered,
+                    matchedCount: run.matchedCount,
+                    unmatchedCount: run.unmatchedCount,
+                    ambiguousCount: run.ambiguousCount,
+                    excludedCount: run.excludedCount,
+                    durationMs: Date.now() - startTime,
+                    isReusedRun: true,
+                    createdAt: run.createdAt,
+                    completedAt: run.completedAt ?? undefined,
+                };
+            }
         }
 
         // ---------------------------------------------------------------------
@@ -223,6 +275,7 @@ export class ReconciliationService {
                 skip += transactions.length;
             }
 
+            const completedAt = new Date();
             // Finalize run as COMPLETED
             await this.repository.finalizeRun(run.id, 'COMPLETED', counters);
 
@@ -240,6 +293,8 @@ export class ReconciliationService {
                 excludedCount: counters.excludedCount,
                 durationMs: Date.now() - startTime,
                 isReusedRun: false,
+                createdAt: run.createdAt,
+                completedAt,
             };
         } catch (error) {
             const sanitizedError = sanitizeErrorMessage(error);
@@ -257,4 +312,60 @@ export class ReconciliationService {
             );
         }
     }
+
+    async listRuns(merchantId: string, filter: ListRunsFilter): Promise<ListRunsResult> {
+        return this.repository.listRuns(merchantId, filter);
+    }
+
+    async getRun(merchantId: string, runId: string): Promise<ReconciliationRunDetail> {
+        const run = await this.repository.findRunById(merchantId, runId);
+        if (!run) {
+            throw new ReconciliationError(
+                'RECON_RUN_NOT_FOUND',
+                'Reconciliation run not found or access denied',
+                ['runId'],
+            );
+        }
+        return run;
+    }
+
+    async listMatches(
+        merchantId: string,
+        runId: string,
+        filter: ListMatchesFilter,
+    ): Promise<ListMatchesResult> {
+        if (!merchantId || !UUID_REGEX.test(merchantId)) {
+            throw new ReconciliationError(
+                'RECON_INVALID_INPUT',
+                'merchantId must be a valid UUID',
+                ['merchantId'],
+            );
+        }
+
+        if (!runId || !UUID_REGEX.test(runId)) {
+            throw new ReconciliationError(
+                'RECON_INVALID_INPUT',
+                'runId must be a valid UUID',
+                ['runId'],
+            );
+        }
+
+        return this.repository.listMatches(merchantId, runId, filter);
+    }
+}
+
+export interface CreateReconciliationServiceDeps {
+    getDb?: () => PrismaClient;
+}
+
+export function createReconciliationService(
+    deps: CreateReconciliationServiceDeps = {},
+): ReconciliationService {
+    const dbProvider = deps.getDb ?? getDB;
+    const prisma = dbProvider();
+    const repository = createReconciliationRepository(prisma as any);
+    return new ReconciliationService({
+        db: prisma as any,
+        repository,
+    });
 }

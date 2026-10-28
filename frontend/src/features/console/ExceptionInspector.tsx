@@ -18,6 +18,7 @@ interface ExceptionInspectorProps {
     onTriggerAction: (action: ExceptionAction) => void;
     actionInProgress: boolean;
     onCloseInspector?: () => void;
+    onInspectRun?: (runId: string) => void;
 }
 
 export function ExceptionInspector({
@@ -26,6 +27,7 @@ export function ExceptionInspector({
     onTriggerAction,
     actionInProgress,
     onCloseInspector,
+    onInspectRun,
 }: ExceptionInspectorProps) {
     const [copied, setCopied] = useState(false);
 
@@ -141,7 +143,7 @@ export function ExceptionInspector({
                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2.5">
                     Reconciliation Batch Context
                 </h4>
-                <RunMetadata run={exception.reconciliationRun} />
+                <RunMetadata run={exception.reconciliationRun} onInspectRun={onInspectRun} />
             </div>
 
             {/* Immutable Audit Timeline */}
