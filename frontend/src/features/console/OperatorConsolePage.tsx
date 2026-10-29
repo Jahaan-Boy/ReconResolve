@@ -5,12 +5,13 @@ import {
     RefreshCw,
     X,
 } from 'lucide-react';
-import { ConsoleAppHeader } from './ConsoleAppHeader';
+import { ConsoleAppHeader, type ConsoleView } from './ConsoleAppHeader';
 import { ExceptionQueue } from './ExceptionQueue';
 import { ExceptionInspector } from './ExceptionInspector';
 import { ExceptionActionDialog } from './ExceptionActionDialog';
 import { OrderIngestionDialog } from './OrderIngestionDialog';
 import { ReconciliationDialog } from './ReconciliationDialog';
+import { ReconciliationDashboardPage } from '@/features/dashboard/ReconciliationDashboardPage';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
 import {
@@ -59,6 +60,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
     const [isReconModalOpen, setIsReconModalOpen] = useState(false);
     const [selectedReconRunId, setSelectedReconRunId] = useState<string | null>(null);
+    const [consoleView, setConsoleView] = useState<ConsoleView>('dashboard');
 
     const [operatorContext, setOperatorContext] = useState<OperatorContext>({
         operatorId: 'operator-sarah',
@@ -521,6 +523,11 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         setShowMobileDetail(true);
     };
 
+    const currentMerchantName =
+        permittedMerchants.find((m) => m.id === merchantId)?.name ||
+        SEEDED_MERCHANTS.find((m) => m.id === merchantId)?.name ||
+        'Custom Tenant';
+
     const currentMerchantSlug =
         // permittedMerchants.find((m) => m.id === merchantId)?.slug ||
         SEEDED_MERCHANTS.find((m) => m.id === merchantId)?.slug ||
@@ -542,6 +549,8 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 onToggleApiSource={(src) => adaptiveApiClient.setSource(src)}
                 onNavigateLanding={onNavigateLanding}
                 onOpenOrderIngestion={() => setIsOrderModalOpen(true)}
+                activeView={consoleView}
+                onChangeView={setConsoleView}
                 onOpenReconciliation={() => {
                     setSelectedReconRunId(null);
                     setIsReconModalOpen(true);
@@ -550,7 +559,31 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
 
             {/* Workbench Body */}
             <main className="flex-1 overflow-hidden">
-                <div className="grid grid-cols-1 lg:grid-cols-12 h-full">
+                {consoleView === 'dashboard' ? (
+                    <ReconciliationDashboardPage
+                        merchantId={merchantId}
+                        merchantName={currentMerchantName}
+                        merchantSlug={currentMerchantSlug}
+                        operatorRole={operatorContext.role}
+                        onTriggerRun={() => {
+                            setSelectedReconRunId(null);
+                            setIsReconModalOpen(true);
+                        }}
+                        onInspectRun={(runId) => {
+                            setSelectedReconRunId(runId);
+                            setIsReconModalOpen(true);
+                        }}
+                        onNavigateToException={(exceptionId) => {
+                            setSelectedId(exceptionId);
+                            setConsoleView('workbench');
+                            setShowMobileDetail(true);
+                        }}
+                        onNavigateToQueue={() => {
+                            setConsoleView('workbench');
+                        }}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 h-full">
                     {/* Left Pane: Queue & Filters (40% width / 5 cols) */}
                     <div
                         className={`h-full lg:col-span-5 flex flex-col border-r border-slate-200 overflow-hidden ${
@@ -598,6 +631,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                         />
                     </div>
                 </div>
+                )}
             </main>
 
             {/* Action Dialog Modal */}
