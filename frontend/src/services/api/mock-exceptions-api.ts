@@ -737,3 +737,171 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
         return JSON.parse(JSON.stringify(record));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Mock Dashboard Client (Day 13)
+// ---------------------------------------------------------------------------
+
+import type {
+    DashboardApiClient,
+    DashboardDateRangeFilter,
+    DashboardSummaryResponse,
+    DashboardTrendPoint,
+} from './types';
+
+export class MockDashboardApiClient implements DashboardApiClient {
+    async getDashboardSummary(
+        merchantId: string,
+        _filter?: DashboardDateRangeFilter,
+    ): Promise<DashboardSummaryResponse> {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+
+        const isDemo = merchantId === DEFAULT_MERCHANT_ID || merchantId === SEEDED_MERCHANTS[1].id;
+
+        if (!isDemo) {
+            return {
+                range: { from: null, to: null },
+                generatedAt: new Date().toISOString(),
+                latestRun: null,
+                summary: {
+                    runCount: 0,
+                    completedRunCount: 0,
+                    failedRunCount: 0,
+                    inProgressRunCount: 0,
+                    openExceptionCount: 0,
+                    totalConsideredSum: 0,
+                    totalMatchedSum: 0,
+                    periodMatchRatePercentage: null,
+                },
+                trend: [],
+            };
+        }
+
+        const now = new Date();
+        const runTime = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2 hours ago
+        const completedTime = new Date(runTime.getTime() + 4120);
+
+        const trendPoints: DashboardTrendPoint[] = [
+            {
+                date: new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10),
+                runId: 'r-trend-1',
+                status: 'COMPLETED',
+                totalConsidered: 110,
+                matchedCount: 98,
+                unmatchedCount: 6,
+                ambiguousCount: 4,
+                excludedCount: 2,
+                matchRatePercentage: 90.74,
+                createdAt: new Date(now.getTime() - 6 * 86400000).toISOString(),
+            },
+            {
+                date: new Date(now.getTime() - 5 * 86400000).toISOString().slice(0, 10),
+                runId: 'r-trend-2',
+                status: 'COMPLETED',
+                totalConsidered: 135,
+                matchedCount: 124,
+                unmatchedCount: 5,
+                ambiguousCount: 3,
+                excludedCount: 3,
+                matchRatePercentage: 93.94,
+                createdAt: new Date(now.getTime() - 5 * 86400000).toISOString(),
+            },
+            {
+                date: new Date(now.getTime() - 4 * 86400000).toISOString().slice(0, 10),
+                runId: 'r-trend-3',
+                status: 'COMPLETED',
+                totalConsidered: 125,
+                matchedCount: 112,
+                unmatchedCount: 8,
+                ambiguousCount: 4,
+                excludedCount: 1,
+                matchRatePercentage: 90.32,
+                createdAt: new Date(now.getTime() - 4 * 86400000).toISOString(),
+            },
+            {
+                date: new Date(now.getTime() - 3 * 86400000).toISOString().slice(0, 10),
+                runId: 'r-trend-4',
+                status: 'FAILED',
+                totalConsidered: 0,
+                matchedCount: 0,
+                unmatchedCount: 0,
+                ambiguousCount: 0,
+                excludedCount: 0,
+                matchRatePercentage: null,
+                createdAt: new Date(now.getTime() - 3 * 86400000).toISOString(),
+            },
+            {
+                date: new Date(now.getTime() - 2 * 86400000).toISOString().slice(0, 10),
+                runId: 'r-trend-5',
+                status: 'COMPLETED',
+                totalConsidered: 140,
+                matchedCount: 130,
+                unmatchedCount: 5,
+                ambiguousCount: 2,
+                excludedCount: 3,
+                matchRatePercentage: 94.89,
+                createdAt: new Date(now.getTime() - 2 * 86400000).toISOString(),
+            },
+            {
+                date: new Date(now.getTime() - 1 * 86400000).toISOString().slice(0, 10),
+                runId: 'r-trend-6',
+                status: 'COMPLETED',
+                totalConsidered: 115,
+                matchedCount: 104,
+                unmatchedCount: 7,
+                ambiguousCount: 3,
+                excludedCount: 1,
+                matchRatePercentage: 91.23,
+                createdAt: new Date(now.getTime() - 1 * 86400000).toISOString(),
+            },
+            {
+                date: now.toISOString().slice(0, 10),
+                runId: 'r-trend-7',
+                status: 'COMPLETED',
+                totalConsidered: 120,
+                matchedCount: 108,
+                unmatchedCount: 6,
+                ambiguousCount: 4,
+                excludedCount: 2,
+                matchRatePercentage: 91.53,
+                createdAt: runTime.toISOString(),
+            },
+        ];
+
+        return {
+            range: { from: null, to: null },
+            generatedAt: now.toISOString(),
+            latestRun: {
+                id: 'r1000000-0000-4000-8000-000000000001',
+                merchantId,
+                status: 'COMPLETED',
+                windowStart: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+                windowEnd: now.toISOString(),
+                rulesetVersion: 'v1',
+                totalConsidered: 120,
+                matchedCount: 108,
+                unmatchedCount: 6,
+                ambiguousCount: 4,
+                excludedCount: 2,
+                eligibleConsidered: 118,
+                matchRatePercentage: 91.53,
+                durationMs: 4120,
+                failureReason: null,
+                startedAt: runTime.toISOString(),
+                completedAt: completedTime.toISOString(),
+                createdAt: runTime.toISOString(),
+            },
+            summary: {
+                runCount: 7,
+                completedRunCount: 6,
+                failedRunCount: 1,
+                inProgressRunCount: 0,
+                openExceptionCount: 4,
+                totalConsideredSum: 745,
+                totalMatchedSum: 676,
+                periodMatchRatePercentage: 92.22,
+            },
+            trend: trendPoints,
+        };
+    }
+}

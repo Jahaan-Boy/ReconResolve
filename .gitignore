@@ -32,5 +32,5 @@ backend/test/reconciliation-run-matches.test.ts
 backend/test/auth.test.ts
 backend/test/tenant-isolation.test.ts
 
-# Day 12 implementation plan
-DAY_12_PLAN.md
+
+DAY_13_PLAN.md

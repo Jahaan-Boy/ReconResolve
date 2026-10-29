@@ -10,12 +10,16 @@ import {
     Sparkles,
     Package,
     GitCommit,
+    LayoutDashboard,
+    ShieldAlert,
 } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
 import type { OperatorContext } from '@/services/api/types';
 import type { ApiSource } from '@/services/api/api-client';
 import type { UserProfile, PermittedMerchant } from '@/services/api/auth-api';
+
+export type ConsoleView = 'dashboard' | 'workbench';
 
 interface ConsoleAppHeaderProps {
     currentMerchantId: string;
@@ -31,6 +35,8 @@ interface ConsoleAppHeaderProps {
     onNavigateLanding: () => void;
     onOpenOrderIngestion?: () => void;
     onOpenReconciliation?: () => void;
+    activeView?: ConsoleView;
+    onChangeView?: (view: ConsoleView) => void;
 }
 
 export function ConsoleAppHeader({
@@ -46,6 +52,8 @@ export function ConsoleAppHeader({
     onNavigateLanding,
     onOpenOrderIngestion,
     onOpenReconciliation,
+    activeView = 'workbench',
+    onChangeView,
 }: ConsoleAppHeaderProps) {
     const [merchantMenuOpen, setMerchantMenuOpen] = useState(false);
     const [operatorMenuOpen, setOperatorMenuOpen] = useState(false);
@@ -100,6 +108,44 @@ export function ConsoleAppHeader({
                         </span>
                     </div>
                 </div>
+
+                {/* Center: View Switcher Tabs (Overview vs Exceptions Workbench) */}
+                {onChangeView && (
+                    <nav
+                        className="hidden md:flex items-center rounded-lg bg-slate-100 p-0.5 border border-slate-200/80 shadow-2xs"
+                        role="tablist"
+                        aria-label="Console Navigation"
+                    >
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={activeView === 'dashboard'}
+                            onClick={() => onChangeView('dashboard')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                activeView === 'dashboard'
+                                    ? 'bg-white text-fin-brand shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <LayoutDashboard className="size-3.5" />
+                            <span>Overview</span>
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={activeView === 'workbench'}
+                            onClick={() => onChangeView('workbench')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                activeView === 'workbench'
+                                    ? 'bg-white text-fin-brand shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <ShieldAlert className="size-3.5" />
+                            <span>Exceptions Queue</span>
+                        </button>
+                    </nav>
+                )}
 
                 {/* Right: Merchant Selector + Operator Badge + Backend Status */}
                 <div className="flex items-center gap-2.5 sm:gap-3.5">
