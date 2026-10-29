@@ -160,6 +160,7 @@ export class ApiClientError extends Error {
 export interface ExceptionsApiClient {
     listExceptions(merchantId: string, filter?: ListExceptionsFilter): Promise<ListExceptionsResult>;
     getException(merchantId: string, exceptionId: string): Promise<ExceptionDetail>;
+    getAuditEvents(merchantId: string, exceptionId: string): Promise<ExceptionAuditEventSummary[]>;
     resolve(merchantId: string, exceptionId: string, input: ResolveExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
     reopen(merchantId: string, exceptionId: string, input: ReopenExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
     dismiss(merchantId: string, exceptionId: string, input: DismissExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;

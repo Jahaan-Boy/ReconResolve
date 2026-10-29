@@ -13,6 +13,7 @@ import { OrderIngestionDialog } from './OrderIngestionDialog';
 import { ReconciliationDialog } from './ReconciliationDialog';
 import { ReconciliationDashboardPage } from '@/features/dashboard/ReconciliationDashboardPage';
 import { AuthModal } from '@/features/auth/AuthModal';
+import { useConsoleKeyboardShortcuts } from '@/hooks/useConsoleKeyboardShortcuts';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
 import {
     authApiClient,
@@ -94,6 +95,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
 
     // Mobile workbench toggle
     const [showMobileDetail, setShowMobileDetail] = useState(false);
+
 
     // Action dialog state
     const [activeAction, setActiveAction] = useState<ExceptionAction | null>(null);
@@ -522,6 +524,33 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         setSelectedId(id);
         setShowMobileDetail(true);
     };
+
+    // Keyboard Shortcuts for Rapid Console Triage (Roadmap Feature 3)
+    const selectedIndex = items.findIndex((i) => i.id === selectedId);
+    const hasAnyModalOpen = isAuthModalOpen || isOrderModalOpen || isReconModalOpen || Boolean(activeAction);
+
+    useConsoleKeyboardShortcuts({
+        enabled: consoleView === 'workbench',
+        hasOpenModal: hasAnyModalOpen,
+        itemsCount: items.length,
+        selectedIndex,
+        onSelectIndex: (idx) => {
+            if (items[idx]) {
+                handleSelectRow(items[idx].id);
+            }
+        },
+        onTriggerAction: (action) => {
+            if (detail) {
+                handleTriggerAction(action);
+            }
+        },
+        onCloseModal: () => {
+            if (activeAction) setActiveAction(null);
+            else if (isOrderModalOpen) setIsOrderModalOpen(false);
+            else if (isReconModalOpen) setIsReconModalOpen(false);
+            else if (isAuthModalOpen) setIsAuthModalOpen(false);
+        },
+    });
 
     const currentMerchantName =
         permittedMerchants.find((m) => m.id === merchantId)?.name ||

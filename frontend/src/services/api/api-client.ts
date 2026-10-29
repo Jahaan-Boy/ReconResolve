@@ -2,6 +2,7 @@ import { HttpExceptionsApiClient } from './exceptions-api';
 import { MockExceptionsApiClient } from './mock-exceptions-api';
 import type {
     ExceptionsApiClient,
+    ExceptionAuditEventSummary,
     ExceptionDetail,
     ListExceptionsFilter,
     ListExceptionsResult,
@@ -87,6 +88,10 @@ class AdaptiveExceptionsApiClient implements ExceptionsApiClient {
             }
             throw err;
         }
+    }
+
+    async getAuditEvents(merchantId: string, exceptionId: string): Promise<ExceptionAuditEventSummary[]> {
+        return this.getActiveClient().getAuditEvents(merchantId, exceptionId);
     }
 
     async getException(merchantId: string, exceptionId: string): Promise<ExceptionDetail> {

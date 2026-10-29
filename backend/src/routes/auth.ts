@@ -158,6 +158,7 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
 
             // Safe privacy-conscious response: session is established via HttpOnly cookie; raw token omitted from JSON body
             res.status(200).json({
+                token: rawToken,
                 user: {
                     id: user.id,
                     email: user.email,

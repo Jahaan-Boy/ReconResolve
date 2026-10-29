@@ -1,6 +1,7 @@
 import {
     ApiClientError,
     ConcurrencyConflictError,
+    type ExceptionAuditEventSummary,
     type ExceptionDetail,
     type ExceptionsApiClient,
     type ListExceptionsFilter,
@@ -97,6 +98,19 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         return this.handleResponse<ExceptionDetail>(res);
     }
 
+    async getAuditEvents(merchantId: string, exceptionId: string): Promise<ExceptionAuditEventSummary[]> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/audit`;
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+        });
+        const data = await this.handleResponse<{ exceptionId: string; auditEvents: ExceptionAuditEventSummary[] }>(res);
+        return data.auditEvents;
+    }
+
     async resolve(
         merchantId: string,
         exceptionId: string,
@@ -110,7 +124,8 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
             credentials: 'same-origin',
             body: JSON.stringify(input),
         });
-        return this.handleResponse<ExceptionDetail>(res);
+        await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
+        return this.getException(merchantId, exceptionId);
     }
 
     async reopen(
@@ -126,7 +141,8 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
             credentials: 'same-origin',
             body: JSON.stringify(input),
         });
-        return this.handleResponse<ExceptionDetail>(res);
+        await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
+        return this.getException(merchantId, exceptionId);
     }
 
     async dismiss(
@@ -142,7 +158,8 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
             credentials: 'same-origin',
             body: JSON.stringify(input),
         });
-        return this.handleResponse<ExceptionDetail>(res);
+        await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
+        return this.getException(merchantId, exceptionId);
     }
 
     async investigate(
@@ -158,6 +175,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
             credentials: 'same-origin',
             body: JSON.stringify(input),
         });
-        return this.handleResponse<ExceptionDetail>(res);
+        await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
+        return this.getException(merchantId, exceptionId);
     }
 }
