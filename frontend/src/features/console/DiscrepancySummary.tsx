@@ -12,32 +12,40 @@ export function DiscrepancySummary({ exception }: DiscrepancySummaryProps) {
     if (type === 'AMOUNT_MISMATCH') {
         const orderAmount = linkedMerchantOrder?.amountMinor;
         const providerAmount = linkedProviderTransaction?.amountMinor;
-        const currency = linkedMerchantOrder?.currency || linkedProviderTransaction?.currency || 'USD';
-        const diff = formatMinorDifference(orderAmount, providerAmount, currency);
+        const orderCurrency = linkedMerchantOrder?.currency;
+        const providerCurrency = linkedProviderTransaction?.currency;
+        const isCurrencyMismatch = Boolean(orderCurrency && providerCurrency && orderCurrency !== providerCurrency);
+        const currency = orderCurrency || providerCurrency || 'USD';
+        const diff = !isCurrencyMismatch ? formatMinorDifference(orderAmount, providerAmount, currency) : null;
 
         return (
             <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4">
                 <div className="flex items-center gap-2 text-rose-800 font-semibold text-xs tracking-wide uppercase mb-3">
                     <DollarSign className="size-4 text-rose-600" />
-                    <span>Financial Discrepancy Detected: Amount Mismatch</span>
+                    <span>{isCurrencyMismatch ? 'Financial Discrepancy: Currency & Amount Mismatch' : 'Financial Discrepancy Detected: Amount Mismatch'}</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center bg-white p-3.5 rounded-lg border border-rose-100 shadow-2xs">
                     <div>
                         <div className="text-[11px] font-medium text-slate-500">Merchant Order Total</div>
                         <div className="text-base font-semibold text-slate-900 tabular-nums">
-                            {formatMinorUnits(orderAmount, currency)}
+                            {formatMinorUnits(orderAmount, orderCurrency || 'USD')}
                         </div>
+                        {isCurrencyMismatch && (
+                            <span className="inline-block text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 mt-1">
+                                Currency: {orderCurrency}
+                            </span>
+                        )}
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-center gap-2 text-slate-400">
                         <ArrowRight className="size-4 hidden sm:block text-slate-300" />
                         <div className="text-center">
                             <div className="text-[10px] font-medium uppercase text-rose-600 tracking-wider">
-                                Net Difference
+                                {isCurrencyMismatch ? 'Currency Delta' : 'Net Difference'}
                             </div>
                             <div className="text-sm font-bold text-rose-700 tabular-nums">
-                                {diff.formatted}
+                                {isCurrencyMismatch ? 'FX Variance' : diff?.formatted}
                             </div>
                         </div>
                         <ArrowRight className="size-4 hidden sm:block text-slate-300" />
@@ -46,13 +54,22 @@ export function DiscrepancySummary({ exception }: DiscrepancySummaryProps) {
                     <div className="sm:text-right">
                         <div className="text-[11px] font-medium text-slate-500">Provider Captured Total</div>
                         <div className="text-base font-semibold text-slate-900 tabular-nums">
-                            {formatMinorUnits(providerAmount, currency)}
+                            {formatMinorUnits(providerAmount, providerCurrency || 'USD')}
                         </div>
+                        {isCurrencyMismatch && (
+                            <span className="inline-block text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 mt-1">
+                                Currency: {providerCurrency}
+                            </span>
+                        )}
                     </div>
                 </div>
 
                 <p className="mt-2.5 text-xs text-rose-900/80 leading-relaxed">
-                    Provider charged customer <strong className="font-semibold text-rose-950">{formatMinorUnits(providerAmount, currency)}</strong>, but internal order expects <strong className="font-semibold text-rose-950">{formatMinorUnits(orderAmount, currency)}</strong>. An unexplained variance of <strong className="font-semibold text-rose-950">{diff.formatted}</strong> requires operator reconciliation.
+                    {isCurrencyMismatch ? (
+                        <>Merchant order expects <strong className="font-semibold text-rose-950">{formatMinorUnits(orderAmount, orderCurrency)} ({orderCurrency})</strong>, but Provider settlement occurred in <strong className="font-semibold text-rose-950">{formatMinorUnits(providerAmount, providerCurrency)} ({providerCurrency})</strong>. Exact direct subtraction is not applied across differing currencies without an authorized FX rate.</>
+                    ) : (
+                        <>Provider charged customer <strong className="font-semibold text-rose-950">{formatMinorUnits(providerAmount, currency)}</strong>, but internal order expects <strong className="font-semibold text-rose-950">{formatMinorUnits(orderAmount, currency)}</strong>. An unexplained variance of <strong className="font-semibold text-rose-950">{diff?.formatted}</strong> requires operator reconciliation.</>
+                    )}
                 </p>
             </div>
         );

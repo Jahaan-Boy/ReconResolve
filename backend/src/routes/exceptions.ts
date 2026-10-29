@@ -185,6 +185,24 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
         }
     });
 
+    // 2b. Exception Audit History
+    router.get('/:exceptionId/audit', async (req: Request, res: Response): Promise<void> => {
+        try {
+            const { merchantId, exceptionId } = req.params;
+            validateMerchantParam(merchantId);
+            validateExceptionParam(exceptionId);
+
+            const context = resolveContext(req);
+            const detail = await service.getException(merchantId, exceptionId, context);
+            res.status(200).json({
+                exceptionId,
+                auditEvents: detail.auditEvents,
+            });
+        } catch (err) {
+            handleRouteError(res, err);
+        }
+    });
+
     // 3. Resolve Exception
     router.post('/:exceptionId/resolve', requireRole(['OWNER', 'ADMIN', 'ANALYST']), async (req: Request, res: Response): Promise<void> => {
         try {

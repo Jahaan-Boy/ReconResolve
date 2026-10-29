@@ -517,6 +517,11 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
         };
     }
 
+    async getAuditEvents(merchantId: string, exceptionId: string): Promise<ExceptionAuditEventSummary[]> {
+        const detail = await this.getException(merchantId, exceptionId);
+        return detail.auditEvents;
+    }
+
     async getException(merchantId: string, exceptionId: string): Promise<ExceptionDetail> {
         await this.simulateDelay();
         const found = this.store.get(exceptionId);
