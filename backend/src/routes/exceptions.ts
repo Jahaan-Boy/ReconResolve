@@ -14,6 +14,10 @@ import {
     requireRole,
     type AuthMiddlewareDeps,
 } from '../auth/middleware';
+import {
+    createInvestigationRouter,
+    type InvestigationRouterDeps,
+} from './investigations';
 
 export interface ExceptionRouterDeps {
     service?: ExceptionLifecycleService;
@@ -21,6 +25,7 @@ export interface ExceptionRouterDeps {
     authGuard?: RequestHandler;
     merchantGuard?: RequestHandler;
     authDeps?: AuthMiddlewareDeps;
+    investigationRouterDeps?: InvestigationRouterDeps;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -270,6 +275,16 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
             handleRouteError(res, err);
         }
     });
+
+    // 7. AI Investigator routes: /:exceptionId/investigations
+    router.use(
+        '/:exceptionId/investigations',
+        createInvestigationRouter({
+            ...deps.investigationRouterDeps,
+            authGuard: deps.investigationRouterDeps?.authGuard ?? ((_req, _res, next) => next()),
+            merchantGuard: deps.investigationRouterDeps?.merchantGuard ?? ((_req, _res, next) => next()),
+        }),
+    );
 
     return router;
 }

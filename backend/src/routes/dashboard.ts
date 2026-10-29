@@ -42,7 +42,7 @@ const DashboardSummaryQuerySchema = z
 export function createDashboardRouter(deps: DashboardRouterDeps = {}): Router {
     const router = Router({ mergeParams: true });
     const dbProvider = deps.getDb ?? getDB;
-    const service = deps.service ?? createDashboardService({ getDb: dbProvider });
+    const getService = () => deps.service ?? createDashboardService({ getDb: dbProvider });
 
     // Server-enforced authentication and tenant context isolation
     const authGuard = deps.authGuard ?? authenticate(deps.authDeps);
@@ -142,6 +142,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps = {}): Router {
                 }
             }
 
+            const service = getService();
             const summary = await service.getSummary(trustedMerchantId, filter);
             res.status(200).json(summary);
         } catch (err) {

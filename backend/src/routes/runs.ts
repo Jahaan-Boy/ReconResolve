@@ -89,7 +89,7 @@ const ListMatchesQuerySchema = z.object({
 export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps = {}): Router {
     const router = Router({ mergeParams: true });
     const dbProvider = deps.getDb ?? getDB;
-    const service = deps.service ?? createReconciliationService({ getDb: dbProvider });
+    const getService = () => deps.service ?? createReconciliationService({ getDb: dbProvider });
 
     // Server-enforced authentication and tenant context isolation
     const authGuard = deps.authGuard ?? authenticate(deps.authDeps);
@@ -203,6 +203,9 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
                 const { merchantId } = req.params;
                 validateMerchantParam(merchantId);
 
+                const prisma = dbProvider();
+                const service = getService();
+
                 // Tenant identity is strictly derived from server-authenticated context
                 const trustedMerchantId = req.auth!.merchant.id;
                 if (merchantId !== trustedMerchantId) {
@@ -298,7 +301,6 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
                 }
 
                 // Resolve provider connection: use explicit connection ID or auto-resolve active connection
-                const prisma = dbProvider();
                 let resolvedConnectionId = explicitConnectionId;
 
                 if (!resolvedConnectionId) {
@@ -402,6 +404,7 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
                 return;
             }
 
+            const service = getService();
             const result = await service.listRuns(trustedMerchantId, filter);
             res.status(200).json(result);
         } catch (err) {
@@ -429,6 +432,7 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
                 return;
             }
 
+            const service = getService();
             const detail = await service.getRun(trustedMerchantId, runId);
             res.status(200).json(detail);
         } catch (err) {
@@ -458,6 +462,7 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
 
             const filter = ListMatchesQuerySchema.parse(req.query);
 
+            const service = getService();
             const result = await service.listMatches(trustedMerchantId, runId, filter);
             res.status(200).json(result);
         } catch (err) {
