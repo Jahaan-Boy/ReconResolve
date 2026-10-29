@@ -103,6 +103,12 @@ enum OutboxStatus {
   FAILED
 }
 
+enum InvestigationStatus {
+  SUCCESS
+  INSUFFICIENT_EVIDENCE
+  FAILED
+}
+
 // ---------------------------------------------------------------------------
 // Merchant
 
@@ -125,6 +131,7 @@ model Merchant {
   outboxEvents         OutboxEvent[]
   exceptionAuditEvents ExceptionAuditEvent[]
   memberships          MerchantMembership[]
+  investigations       ExceptionInvestigation[]
 
   @@map("merchants")
 }
@@ -237,6 +244,7 @@ model ReconciliationRun {
   merchant   Merchant                  @relation(fields: [merchantId], references: [id])
   exceptions ReconciliationException[]
   matches    ReconciliationMatch[]
+  investigations ExceptionInvestigation[]
 
   @@unique([merchantId, idempotencyKey])
   @@index([merchantId, createdAt])
@@ -268,6 +276,7 @@ model ReconciliationException {
   providerTransaction ProviderTransaction?  @relation(fields: [providerTransactionId], references: [id])
   merchantOrder       MerchantOrder?        @relation(fields: [merchantOrderId], references: [id])
   auditEvents         ExceptionAuditEvent[]
+  investigations      ExceptionInvestigation[]
 
   @@unique([reconciliationRunId, providerTransactionId, type])
   @@index([merchantId, status, createdAt])
@@ -451,4 +460,44 @@ model Session {
   @@index([expiresAt])
   @@map("sessions")
 }
+
+// ---------------------------------------------------------------------------
+// ExceptionInvestigation
+// ---------------------------------------------------------------------------
+
+model ExceptionInvestigation {
+  id                           String              @id @default(uuid()) @db.Uuid
+  merchantId                   String              @map("merchant_id") @db.Uuid
+  exceptionId                  String              @map("exception_id") @db.Uuid
+  actorId                      String?             @map("actor_id") @db.VarChar(128)
+  reconciliationRunId          String?             @map("reconciliation_run_id") @db.Uuid
+  idempotencyKey               String?             @map("idempotency_key") @db.VarChar(128)
+  status                       InvestigationStatus @default(SUCCESS)
+  summary                      String              @db.Text
+  facts                        Json
+  likelyCauses                 Json                @map("likely_causes")
+  recommendedNextSteps         Json                @map("recommended_next_steps")
+  missingOrConflictingEvidence Json?               @map("missing_or_conflicting_evidence")
+  limitations                  Json?               @map("limitations")
+  evidenceRefs                 Json                @map("evidence_refs")
+  modelProvider                String              @map("model_provider") @db.VarChar(64)
+  modelId                      String              @map("model_id") @db.VarChar(64)
+  promptVersion                String              @map("prompt_version") @db.VarChar(32)
+  outputSchemaVersion          String              @map("output_schema_version") @db.VarChar(32)
+  durationMs                   Int?                @map("duration_ms")
+  errorCategory                String?             @map("error_category") @db.VarChar(64)
+  createdAt                    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  merchant          Merchant                @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  exception         ReconciliationException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+  reconciliationRun ReconciliationRun?      @relation(fields: [reconciliationRunId], references: [id])
+
+  @@index([exceptionId, createdAt])
+  @@index([merchantId, createdAt])
+  @@unique([merchantId, idempotencyKey])
+  @@map("exception_investigations")
+}
+
+
 
