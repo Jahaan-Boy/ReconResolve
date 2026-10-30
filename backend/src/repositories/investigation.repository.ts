@@ -269,7 +269,5 @@ export class PrismaInvestigationRepository implements InvestigationRepository {
 }
 
 export function createInvestigationRepository(dbProvider = getDB): InvestigationRepository {
-    // Default to in-memory repository to guarantee safe, unblocked execution
-    // without requiring immediate database migration changes
-    return new InMemoryInvestigationRepository();
+    return new PrismaInvestigationRepository(dbProvider);
 }

@@ -488,6 +488,35 @@ stateDiagram-v2
 | **`outbox`** | Background Worker Loop | Distributed lease locking (`claimToken`) + Full Jitter Backoff | Updates `OutboxEvent` & `WebhookEvent` |
 | **`reconciliation`** | User / Scheduled Job | Multi-tier evaluation hierarchy + Zero-guess ambiguity defense | `ReconciliationRun`, `ReconciliationMatch` |
 | **`exception-management`** | Human Operator / API | Strict Finite State Machine + Optimistic Concurrency Control (OCC) | `Exception`, `ExceptionAuditEvent` |
+| **`ai-investigator`** | Human Operator / API (`POST .../investigate`) | Grounded citation integrity + strict read-only advisory + live Gemini provider | `ExceptionInvestigation` |
+
+---
+
+## 9. AI Investigation & Model Provider Architecture
+
+The AI Investigator service provides automated root-cause analysis and non-destructive remediation advice for payment reconciliation exceptions.
+
+### Architecture & Trust Boundary
+* **Advisory & Read-Only Invariant:** AI investigations never modify exception status, dispute status, order state, or transaction amounts.
+* **Evidence Grounding:** All citations returned by the model (`likelyCauses`, `facts`, `recommendedActions`) must strictly exist in the server-assembled `availableEvidenceRefs`. Hallucinated references trigger runtime validation errors (`AIInvestigatorError.unknownEvidenceReference`).
+* **Tenant Isolation:** Prompts are constructed strictly within the authenticated tenant scope. Untrusted text is shielded with `<untrusted_external_content>` XML fences.
+* **Database Persistence:** Investigations are immutably persisted to PostgreSQL (`exception_investigations`).
+
+### Model Provider Configuration (Google Gemini)
+The production adapter uses the official `@google/genai` SDK.
+* **Configuration:**
+  ```bash
+  GEMINI_API_KEY="your-gemini-api-key"
+  GEMINI_MODEL_ID="gemini-2.5-flash"  # Optional, defaults to gemini-2.5-flash
+  ```
+* **Failure Modes:**
+  * **Production (`NODE_ENV=production`):** Missing credentials fails closed with `503 PROVIDER_UNAVAILABLE`. Production never silently selects the test fake provider.
+  * **Automated Tests (`NODE_ENV=test`):** Uses deterministic `TestFakeInvestigationModelProvider` by default. Zero external network calls or paid credits consumed.
+  * **Opt-in Live Smoke Test:** Gated behind `LIVE_AI_TEST=true` and `GEMINI_API_KEY`.
+    ```bash
+    LIVE_AI_TEST=true GEMINI_API_KEY="your-key" npm test test/services/ai-investigator/gemini-live-smoke.integration.test.ts
+    ```
+
 
 
 
