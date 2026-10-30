@@ -165,6 +165,72 @@ export interface ExceptionsApiClient {
     reopen(merchantId: string, exceptionId: string, input: ReopenExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
     dismiss(merchantId: string, exceptionId: string, input: DismissExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
     investigate(merchantId: string, exceptionId: string, input: InvestigateExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
+    triggerAiInvestigation(merchantId: string, exceptionId: string, input?: TriggerInvestigationInput, signal?: AbortSignal): Promise<InvestigationRecord>;
+    getLatestAiInvestigation(merchantId: string, exceptionId: string, signal?: AbortSignal): Promise<InvestigationRecord | null>;
+    listAiInvestigations(merchantId: string, exceptionId: string, signal?: AbortSignal): Promise<InvestigationRecord[]>;
+}
+
+// ---------------------------------------------------------------------------
+// AI Investigator Contracts (Day 15/16)
+// ---------------------------------------------------------------------------
+
+export type InvestigationStatus = 'SUCCESS' | 'INSUFFICIENT_EVIDENCE' | 'FAILED';
+export type ConfidenceLevel = 'low' | 'medium' | 'high';
+
+export interface InvestigationFact {
+    statement: string;
+    evidenceRefs: string[];
+}
+
+export interface InvestigationLikelyCause {
+    hypothesis: string;
+    rationale: string;
+    confidence: ConfidenceLevel;
+    evidenceRefs: string[];
+}
+
+export interface InvestigationNextStep {
+    action: string;
+    description: string;
+    nonDestructive: true;
+}
+
+export interface InvestigationResult {
+    summary: string;
+    facts: InvestigationFact[];
+    likelyCauses: InvestigationLikelyCause[];
+    recommendedNextSteps: InvestigationNextStep[];
+    missingOrConflictingEvidence: string[];
+    limitations: string[];
+    evidenceRefs: string[];
+    generatedAt: string;
+    modelProvider: string;
+    modelId: string;
+    promptVersion: string;
+    outputSchemaVersion: string;
+    status: InvestigationStatus;
+}
+
+export interface InvestigationRecord {
+    id: string;
+    merchantId: string;
+    exceptionId: string;
+    actorId: string | null;
+    reconciliationRunId: string | null;
+    idempotencyKey: string | null;
+    status: InvestigationStatus;
+    result: InvestigationResult;
+    modelProvider: string;
+    modelId: string;
+    promptVersion: string;
+    outputSchemaVersion: string;
+    durationMs: number;
+    errorCategory?: string;
+    createdAt: string;
+}
+
+export interface TriggerInvestigationInput {
+    idempotencyKey?: string;
 }
 
 export type ProviderConnectionStatus = 'ACTIVE' | 'DISABLED' | 'NEEDS_REAUTH';

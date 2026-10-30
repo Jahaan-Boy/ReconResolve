@@ -6,6 +6,7 @@ import { ExceptionTypeBadge } from '@/components/fintech/ExceptionTypeBadge';
 import { EmptyState } from '@/components/fintech/FeedbackStates';
 import { InspectorSkeleton } from '@/components/fintech/Skeleton';
 import { DiscrepancySummary } from './DiscrepancySummary';
+import { AIInvestigationPanel } from './AIInvestigationPanel';
 import { EvidenceComparison } from './EvidenceComparison';
 import { RunMetadata } from './RunMetadata';
 import { AuditTimeline } from './AuditTimeline';
@@ -14,6 +15,7 @@ import { formatTimestamp, truncateId } from '@/lib/formatters';
 
 interface ExceptionInspectorProps {
     exception: ExceptionDetail | null;
+    merchantId?: string;
     loading: boolean;
     onTriggerAction: (action: ExceptionAction) => void;
     actionInProgress: boolean;
@@ -23,6 +25,7 @@ interface ExceptionInspectorProps {
 
 export function ExceptionInspector({
     exception,
+    merchantId,
     loading,
     onTriggerAction,
     actionInProgress,
@@ -55,6 +58,13 @@ export function ExceptionInspector({
         navigator.clipboard.writeText(exception.id);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
+    };
+
+    const handleInspectEvidence = (_evidenceRef: string) => {
+        const el = document.getElementById('evidence-comparison-section');
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     };
 
     return (
@@ -127,8 +137,15 @@ export function ExceptionInspector({
             {/* Discrepancy Callout Banner */}
             <DiscrepancySummary exception={exception} />
 
+            {/* AI Advisory Investigation Panel (Evidence-First) */}
+            <AIInvestigationPanel
+                exception={exception}
+                merchantId={merchantId || exception.merchantId}
+                onInspectEvidence={handleInspectEvidence}
+            />
+
             {/* Side-by-Side Evidence Comparison */}
-            <div>
+            <div id="evidence-comparison-section">
                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2.5">
                     Dual-Sided Financial Evidence
                 </h4>

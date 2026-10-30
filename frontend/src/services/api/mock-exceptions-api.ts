@@ -11,6 +11,8 @@ import {
     type DismissExceptionInput,
     type InvestigateExceptionInput,
     type ExceptionAuditEventSummary,
+    type InvestigationRecord,
+    type TriggerInvestigationInput,
 } from './types';
 
 export const SEEDED_MERCHANTS = [
@@ -418,6 +420,7 @@ const INITIAL_MOCK_EXCEPTIONS: ExceptionDetail[] = [
 
 export class MockExceptionsApiClient implements ExceptionsApiClient {
     private store: Map<string, ExceptionDetail>;
+    private investigationStore: Map<string, InvestigationRecord[]> = new Map();
 
     constructor() {
         this.store = new Map();
@@ -740,6 +743,163 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
         record.auditEvents.push(auditEvent);
 
         return JSON.parse(JSON.stringify(record));
+    }
+
+    async triggerAiInvestigation(
+        merchantId: string,
+        exceptionId: string,
+        input?: TriggerInvestigationInput,
+    ): Promise<InvestigationRecord> {
+        await this.simulateDelay();
+        const record = this.store.get(exceptionId);
+        if (!record || record.merchantId !== merchantId) {
+            throw new ApiClientError('EXCEPTION_NOT_FOUND', 'Exception not found or access denied', 404);
+        }
+
+        const key = `${merchantId}:${exceptionId}`;
+        const existingList = this.investigationStore.get(key) || [];
+
+        // Idempotency check
+        if (input?.idempotencyKey) {
+            const found = existingList.find((r) => r.idempotencyKey === input.idempotencyKey);
+            if (found) return JSON.parse(JSON.stringify(found));
+        }
+
+        const evidenceRefs: string[] = [`exc:${record.id}`];
+        if (record.linkedProviderTransaction) {
+            evidenceRefs.push(`ptxn:${record.linkedProviderTransaction.id}`);
+        }
+        if (record.linkedMerchantOrder) {
+            evidenceRefs.push(`mord:${record.linkedMerchantOrder.id}`);
+        }
+        if (record.reconciliationRun) {
+            evidenceRefs.push(`run:${record.reconciliationRun.id}`);
+        }
+
+        let summary: string;
+        const facts = [
+            {
+                statement: `Reconciliation exception recorded with type ${record.type} in status ${record.status}.`,
+                evidenceRefs: [`exc:${record.id}`],
+            },
+        ];
+        const likelyCauses = [];
+        const missingOrConflictingEvidence: string[] = [];
+
+        if (record.type === 'AMOUNT_MISMATCH' && record.linkedProviderTransaction && record.linkedMerchantOrder) {
+            summary = `Amount discrepancy detected: gateway captured ${record.linkedProviderTransaction.amountMinor} ${record.linkedProviderTransaction.currency}, but merchant order expected ${record.linkedMerchantOrder.amountMinor} ${record.linkedMerchantOrder.currency}.`;
+            facts.push({
+                statement: `Provider transaction recorded gross amount of ${record.linkedProviderTransaction.amountMinor} ${record.linkedProviderTransaction.currency}.`,
+                evidenceRefs: [`ptxn:${record.linkedProviderTransaction.id}`],
+            });
+            facts.push({
+                statement: `Merchant order ledger recorded total amount of ${record.linkedMerchantOrder.amountMinor} ${record.linkedMerchantOrder.currency}.`,
+                evidenceRefs: [`mord:${record.linkedMerchantOrder.id}`],
+            });
+            likelyCauses.push({
+                hypothesis: 'Partial fulfillment adjustment or late coupon deduction was not reflected on the payment capture.',
+                rationale: 'Order ledger contains promo adjustments applied after initial payment authorization.',
+                confidence: 'high' as const,
+                evidenceRefs: [`ptxn:${record.linkedProviderTransaction.id}`, `mord:${record.linkedMerchantOrder.id}`],
+            });
+        } else if (record.type === 'MISSING_PROVIDER_COUNTERPART') {
+            summary = 'Merchant order exists in ledger but no matching settlement or capture transaction was located in provider ingestion window.';
+            missingOrConflictingEvidence.push('Provider transaction record not found within ±24h batch window.');
+            likelyCauses.push({
+                hypothesis: 'Payment transaction webhook was delayed or processed under a different provider account connection.',
+                rationale: 'Reconciliation run processed all available provider events without locating external order reference.',
+                confidence: 'medium' as const,
+                evidenceRefs: [`exc:${record.id}`],
+            });
+        } else if (record.type === 'MISSING_MERCHANT_COUNTERPART') {
+            summary = 'Provider captured funds but no corresponding merchant order was found in the order database.';
+            missingOrConflictingEvidence.push('Merchant order record not present in database.');
+            likelyCauses.push({
+                hypothesis: 'Direct invoice or checkout session orphaned before order ingestion webhook fired.',
+                rationale: 'Transaction occurred on gateway with unmapped custom reference.',
+                confidence: 'medium' as const,
+                evidenceRefs: [`exc:${record.id}`],
+            });
+        } else {
+            summary = `Discrepancy detected under reconciliation ruleset ${record.reconciliationRun?.rulesetVersion || 'v1'}.`;
+            likelyCauses.push({
+                hypothesis: 'Status or reference synchronization divergence between merchant and payment provider.',
+                rationale: 'Timestamps indicate asynchronous update sequence.',
+                confidence: 'low' as const,
+                evidenceRefs: [`exc:${record.id}`],
+            });
+        }
+
+        const now = new Date().toISOString();
+        const investigation: InvestigationRecord = {
+            id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            merchantId,
+            exceptionId,
+            actorId: 'operator-analyst',
+            reconciliationRunId: record.reconciliationRunId,
+            idempotencyKey: input?.idempotencyKey || null,
+            status: 'SUCCESS',
+            result: {
+                summary,
+                facts,
+                likelyCauses,
+                recommendedNextSteps: [
+                    {
+                        action: 'Inspect gateway transaction log',
+                        description: 'Review fee breakdowns and gross settlements in provider portal to verify capture details.',
+                        nonDestructive: true,
+                    },
+                    {
+                        action: 'Contact customer support or check order audit history',
+                        description: 'Confirm whether order was amended or discounted after checkout authorization.',
+                        nonDestructive: true,
+                    },
+                ],
+                missingOrConflictingEvidence,
+                limitations: [
+                    'Analysis is grounded strictly on persisted ledger snapshot data; subsequent gateway syncs may provide additional records.',
+                ],
+                evidenceRefs,
+                generatedAt: now,
+                modelProvider: 'test-fake-provider',
+                modelId: 'fake-investigator-v1',
+                promptVersion: '2026-10-30.v1',
+                outputSchemaVersion: '2026-10-30.v1',
+                status: 'SUCCESS',
+            },
+            modelProvider: 'test-fake-provider',
+            modelId: 'fake-investigator-v1',
+            promptVersion: '2026-10-30.v1',
+            outputSchemaVersion: '2026-10-30.v1',
+            durationMs: 84,
+            createdAt: now,
+        };
+
+        existingList.unshift(investigation);
+        this.investigationStore.set(key, existingList);
+
+        return JSON.parse(JSON.stringify(investigation));
+    }
+
+    async getLatestAiInvestigation(
+        merchantId: string,
+        exceptionId: string,
+    ): Promise<InvestigationRecord | null> {
+        await this.simulateDelay();
+        const key = `${merchantId}:${exceptionId}`;
+        const list = this.investigationStore.get(key) || [];
+        if (list.length === 0) return null;
+        return JSON.parse(JSON.stringify(list[0]));
+    }
+
+    async listAiInvestigations(
+        merchantId: string,
+        exceptionId: string,
+    ): Promise<InvestigationRecord[]> {
+        await this.simulateDelay();
+        const key = `${merchantId}:${exceptionId}`;
+        const list = this.investigationStore.get(key) || [];
+        return JSON.parse(JSON.stringify(list));
     }
 }
 

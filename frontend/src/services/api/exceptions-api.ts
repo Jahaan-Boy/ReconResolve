@@ -11,7 +11,10 @@ import {
     type ReopenExceptionInput,
     type DismissExceptionInput,
     type InvestigateExceptionInput,
+    type InvestigationRecord,
+    type TriggerInvestigationInput,
 } from './types';
+import { validateInvestigationRecord } from './investigation-validator';
 import { notifyUnauthorized } from './auth-api';
 
 export class HttpExceptionsApiClient implements ExceptionsApiClient {
@@ -177,5 +180,64 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         });
         await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
         return this.getException(merchantId, exceptionId);
+    }
+
+    async triggerAiInvestigation(
+        merchantId: string,
+        exceptionId: string,
+        input?: TriggerInvestigationInput,
+        signal?: AbortSignal,
+    ): Promise<InvestigationRecord> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/investigations`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(input || {}),
+            signal,
+        });
+        const raw = await this.handleResponse<unknown>(res);
+        return validateInvestigationRecord(raw);
+    }
+
+    async getLatestAiInvestigation(
+        merchantId: string,
+        exceptionId: string,
+        signal?: AbortSignal,
+    ): Promise<InvestigationRecord | null> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/investigations/latest`;
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            signal,
+        });
+        if (res.status === 404) return null;
+        const raw = await this.handleResponse<unknown>(res);
+        return validateInvestigationRecord(raw);
+    }
+
+    async listAiInvestigations(
+        merchantId: string,
+        exceptionId: string,
+        signal?: AbortSignal,
+    ): Promise<InvestigationRecord[]> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/investigations`;
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            signal,
+        });
+        const data = await this.handleResponse<{ exceptionId: string; investigations: unknown[] }>(res);
+        const list = Array.isArray(data?.investigations) ? data.investigations : [];
+        return list.map(validateInvestigationRecord);
     }
 }
