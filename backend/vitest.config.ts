@@ -5,5 +5,6 @@ export default defineConfig({
         include: ['test/**/*.test.ts'],
         globals: false,
         testTimeout: 15_000,
+        setupFiles: ['dotenv/config'],
     },
 });

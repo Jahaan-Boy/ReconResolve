@@ -36,9 +36,11 @@ export function ExceptionFilters({
     const [showDateRange, setShowDateRange] = useState(Boolean(filters.createdFrom || filters.createdTo));
 
     const filtersRef = useRef(filters);
-    filtersRef.current = filters;
     const onChangeFiltersRef = useRef(onChangeFilters);
-    onChangeFiltersRef.current = onChangeFilters;
+    useEffect(() => {
+        filtersRef.current = filters;
+        onChangeFiltersRef.current = onChangeFilters;
+    }, [filters, onChangeFilters]);
 
     // Sync input when filters.search is reset or modified externally
     useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     X,
     PlusCircle,
@@ -74,23 +74,23 @@ export function OrderIngestionDialog({
     const [ordersList, setOrdersList] = useState<MerchantOrderSummary[]>([]);
     const [loadingList, setLoadingList] = useState(false);
 
-    useEffect(() => {
-        if (isOpen && mode === 'list') {
-            loadRecentOrders();
-        }
-    }, [isOpen, mode, merchantId]);
-
-    const loadRecentOrders = async () => {
+    const loadRecentOrders = useCallback(async () => {
         setLoadingList(true);
         try {
             const res = await ordersApiClient.listOrders(merchantId, { limit: 20 });
             setOrdersList(res.items);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Failed to load orders:', err);
         } finally {
             setLoadingList(false);
         }
-    };
+    }, [merchantId]);
+
+    useEffect(() => {
+        if (isOpen && mode === 'list') {
+            loadRecentOrders();
+        }
+    }, [isOpen, mode, loadRecentOrders]);
 
     if (!isOpen) return null;
 
@@ -118,8 +118,9 @@ export function OrderIngestionDialog({
             const result = await ordersApiClient.ingestSingleOrder(merchantId, input);
             setSingleResult(result);
             if (onOrderIngested) onOrderIngested();
-        } catch (err: any) {
-            setErrorMessage(err.message || 'Failed to ingest order');
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to ingest order';
+            setErrorMessage(msg);
         } finally {
             setLoading(false);
         }
@@ -140,8 +141,9 @@ export function OrderIngestionDialog({
             const result = await ordersApiClient.ingestBatchOrders(merchantId, parsed);
             setBatchResult(result);
             if (onOrderIngested) onOrderIngested();
-        } catch (err: any) {
-            setErrorMessage(err.message || 'Failed to ingest batch orders');
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to ingest batch orders';
+            setErrorMessage(msg);
         } finally {
             setLoading(false);
         }

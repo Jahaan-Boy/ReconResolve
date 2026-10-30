@@ -14,7 +14,7 @@ export function escapeCsvCell(val: unknown): string {
 
     // Prevent spreadsheet formula injection for values starting with =, +, -, @, tab, or carriage return
     // Allow standard negative or signed currency amounts like "-$12.50" or "+$5.00"
-    const isMathAmount = /^[+\-]\$?\d/.test(str);
+    const isMathAmount = /^[+-]\$?\d/.test(str);
     if (/^[=+\-@\t\r]/.test(str) && !isMathAmount) {
         str = `'${str}`;
     }
