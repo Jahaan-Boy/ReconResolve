@@ -121,17 +121,17 @@ model Merchant {
   updatedAt DateTime       @updatedAt @map("updated_at")
 
   // Relations
-  providerConnections  ProviderConnection[]
-  merchantOrders       MerchantOrder[]
-  providerTransactions ProviderTransaction[]
-  reconciliationRuns   ReconciliationRun[]
-  exceptions           ReconciliationException[]
+  providerConnections   ProviderConnection[]
+  merchantOrders        MerchantOrder[]
+  providerTransactions  ProviderTransaction[]
+  reconciliationRuns    ReconciliationRun[]
+  exceptions            ReconciliationException[]
   reconciliationMatches ReconciliationMatch[]
-  webhookEvents        WebhookEvent[]
-  outboxEvents         OutboxEvent[]
-  exceptionAuditEvents ExceptionAuditEvent[]
-  memberships          MerchantMembership[]
-  investigations       ExceptionInvestigation[]
+  webhookEvents         WebhookEvent[]
+  outboxEvents          OutboxEvent[]
+  exceptionAuditEvents  ExceptionAuditEvent[]
+  memberships           MerchantMembership[]
+  investigations        ExceptionInvestigation[]
 
   @@map("merchants")
 }
@@ -241,9 +241,9 @@ model ReconciliationRun {
   updatedAt       DateTime                @updatedAt @map("updated_at")
 
   // Relations
-  merchant   Merchant                  @relation(fields: [merchantId], references: [id])
-  exceptions ReconciliationException[]
-  matches    ReconciliationMatch[]
+  merchant       Merchant                  @relation(fields: [merchantId], references: [id])
+  exceptions     ReconciliationException[]
+  matches        ReconciliationMatch[]
   investigations ExceptionInvestigation[]
 
   @@unique([merchantId, idempotencyKey])
@@ -271,10 +271,10 @@ model ReconciliationException {
   updatedAt             DateTime        @updatedAt @map("updated_at")
 
   // Relations
-  merchant            Merchant              @relation(fields: [merchantId], references: [id])
-  reconciliationRun   ReconciliationRun?    @relation(fields: [reconciliationRunId], references: [id])
-  providerTransaction ProviderTransaction?  @relation(fields: [providerTransactionId], references: [id])
-  merchantOrder       MerchantOrder?        @relation(fields: [merchantOrderId], references: [id])
+  merchant            Merchant                 @relation(fields: [merchantId], references: [id])
+  reconciliationRun   ReconciliationRun?       @relation(fields: [reconciliationRunId], references: [id])
+  providerTransaction ProviderTransaction?     @relation(fields: [providerTransactionId], references: [id])
+  merchantOrder       MerchantOrder?           @relation(fields: [merchantOrderId], references: [id])
   auditEvents         ExceptionAuditEvent[]
   investigations      ExceptionInvestigation[]
 
@@ -289,16 +289,16 @@ model ReconciliationException {
 // ---------------------------------------------------------------------------
 
 model ReconciliationMatch {
-  id                    String              @id @default(uuid()) @db.Uuid
-  merchantId            String              @map("merchant_id") @db.Uuid
-  reconciliationRunId   String              @map("reconciliation_run_id") @db.Uuid
-  providerTransactionId String              @map("provider_transaction_id") @db.Uuid
-  merchantOrderId       String              @map("merchant_order_id") @db.Uuid
-  ruleCode              String              @map("rule_code") @db.VarChar(64)
-  rulesetVersion        String              @default("v1") @map("ruleset_version") @db.VarChar(32)
+  id                    String   @id @default(uuid()) @db.Uuid
+  merchantId            String   @map("merchant_id") @db.Uuid
+  reconciliationRunId   String   @map("reconciliation_run_id") @db.Uuid
+  providerTransactionId String   @map("provider_transaction_id") @db.Uuid
+  merchantOrderId       String   @map("merchant_order_id") @db.Uuid
+  ruleCode              String   @map("rule_code") @db.VarChar(64)
+  rulesetVersion        String   @default("v1") @map("ruleset_version") @db.VarChar(32)
   evidence              Json
-  createdAt             DateTime            @default(now()) @map("created_at")
-  updatedAt             DateTime            @updatedAt @map("updated_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   // Relations
   merchant            Merchant            @relation(fields: [merchantId], references: [id])
@@ -403,13 +403,13 @@ model ExceptionAuditEvent {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String              @id @default(uuid()) @db.Uuid
-  email        String              @unique @db.VarChar(255)
-  passwordHash String              @map("password_hash") @db.VarChar(255)
-  fullName     String              @map("full_name") @db.VarChar(255)
-  status       UserStatus          @default(ACTIVE)
-  createdAt    DateTime            @default(now()) @map("created_at")
-  updatedAt    DateTime            @updatedAt @map("updated_at")
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique @db.VarChar(255)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  fullName     String     @map("full_name") @db.VarChar(255)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
 
   // Relations
   memberships MerchantMembership[]
@@ -493,11 +493,8 @@ model ExceptionInvestigation {
   exception         ReconciliationException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
   reconciliationRun ReconciliationRun?      @relation(fields: [reconciliationRunId], references: [id])
 
+  @@unique([merchantId, idempotencyKey])
   @@index([exceptionId, createdAt])
   @@index([merchantId, createdAt])
-  @@unique([merchantId, idempotencyKey])
   @@map("exception_investigations")
 }
-
-
-

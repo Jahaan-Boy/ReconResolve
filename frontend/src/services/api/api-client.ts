@@ -11,6 +11,8 @@ import type {
     ReopenExceptionInput,
     DismissExceptionInput,
     InvestigateExceptionInput,
+    InvestigationRecord,
+    TriggerInvestigationInput,
 } from './types';
 
 export type ApiSource = 'live' | 'mock';
@@ -132,6 +134,31 @@ class AdaptiveExceptionsApiClient implements ExceptionsApiClient {
         ctx: OperatorContext,
     ): Promise<ExceptionDetail> {
         return this.getActiveClient().investigate(merchantId, exceptionId, input, ctx);
+    }
+
+    async triggerAiInvestigation(
+        merchantId: string,
+        exceptionId: string,
+        input?: TriggerInvestigationInput,
+        signal?: AbortSignal,
+    ): Promise<InvestigationRecord> {
+        return this.getActiveClient().triggerAiInvestigation(merchantId, exceptionId, input, signal);
+    }
+
+    async getLatestAiInvestigation(
+        merchantId: string,
+        exceptionId: string,
+        signal?: AbortSignal,
+    ): Promise<InvestigationRecord | null> {
+        return this.getActiveClient().getLatestAiInvestigation(merchantId, exceptionId, signal);
+    }
+
+    async listAiInvestigations(
+        merchantId: string,
+        exceptionId: string,
+        signal?: AbortSignal,
+    ): Promise<InvestigationRecord[]> {
+        return this.getActiveClient().listAiInvestigations(merchantId, exceptionId, signal);
     }
 }
 
