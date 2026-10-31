@@ -76,7 +76,7 @@ export async function ingestWebhookEvent(
     db: WebhookIngressDb,
     input: IngestWebhookInput,
 ): Promise<IngestWebhookResult> {
-    const { connection, providerEventId, eventType, resourceType, transmissionId, transmissionTime, payload } =
+    const { connection, providerEventId, eventType, resourceType, transmissionId, transmissionTime, payload, correlationId } =
         input;
 
     // 1. First check if event is already persisted (outside or within transaction)
@@ -131,13 +131,18 @@ export async function ingestWebhookEvent(
                 },
             });
 
+            const outboxPayload: Record<string, unknown> = { webhookEventId: webhookEvent.id };
+            if (correlationId) {
+                outboxPayload.correlationId = correlationId;
+            }
+
             const outboxEvent = await tx.outboxEvent.create({
                 data: {
                     merchantId: connection.merchantId,
                     aggregateType: 'WebhookEvent',
                     aggregateId: webhookEvent.id,
                     eventType: 'PAYPAL_WEBHOOK_RECEIVED',
-                    payload: { webhookEventId: webhookEvent.id } as Prisma.InputJsonValue,
+                    payload: outboxPayload as Prisma.InputJsonValue,
                     status: 'PENDING',
                 },
             });

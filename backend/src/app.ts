@@ -23,6 +23,10 @@ import {
     createDashboardRouter,
     type DashboardRouterDeps,
 } from './routes/dashboard';
+import {
+    createOperationsRouter,
+    type OperationsRouterDeps,
+} from './routes/operations';
 
 export interface AppDeps extends WebhookRouterDeps {
     exceptionRouterDeps?: ExceptionRouterDeps;
@@ -32,6 +36,7 @@ export interface AppDeps extends WebhookRouterDeps {
     merchantOrderRouterDeps?: MerchantOrderRouterDeps;
     runRouterDeps?: ReconciliationRunRouterDeps;
     dashboardRouterDeps?: DashboardRouterDeps;
+    operationsRouterDeps?: OperationsRouterDeps;
 }
 
 export function buildApp(deps?: AppDeps): Application {
@@ -69,6 +74,7 @@ export function buildApp(deps?: AppDeps): Application {
     app.use('/api/merchants/:merchantId/orders', createMerchantOrderRouter(deps?.merchantOrderRouterDeps));
     app.use('/api/merchants/:merchantId/runs', createReconciliationRunRouter(deps?.runRouterDeps));
     app.use('/api/merchants/:merchantId/dashboard', createDashboardRouter(deps?.dashboardRouterDeps));
+    app.use('/api/merchants/:merchantId/operations', createOperationsRouter(deps?.operationsRouterDeps));
 
     return app;
 }

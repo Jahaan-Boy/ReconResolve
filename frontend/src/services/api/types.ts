@@ -589,3 +589,46 @@ export interface DashboardApiClient {
         signal?: AbortSignal,
     ): Promise<DashboardSummaryResponse>;
 }
+
+export interface DeadLetterRecord {
+    id: string;
+    aggregateType: string;
+    aggregateId: string;
+    eventType: string;
+    attemptCount: number;
+    lastErrorCategory: string | null;
+    lastError: string | null;
+    createdAt: string;
+    updatedAt: string;
+    replayEligible: boolean;
+}
+
+export interface OperationsSummary {
+    merchantId: string;
+    generatedAt: string;
+    pipelineHealth: 'HEALTHY' | 'DEGRADED' | 'CRITICAL';
+    outbox: {
+        pendingCount: number;
+        processingCount: number;
+        failedCount: number;
+        dispatchedCount: number;
+        oldestPendingAgeMs: number;
+        deadLetterCount: number;
+    };
+    reconciliation: {
+        latestRunStatus: string | null;
+        latestRunId: string | null;
+        failedRunsCount: number;
+        recentAmbiguousCount: number;
+    };
+    investigations: {
+        totalInvestigationsCount: number;
+        recentFailedCount: number;
+    };
+    deadLetterQueue: DeadLetterRecord[];
+}
+
+export interface OperationsApiClient {
+    getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary>;
+    replayOutboxEvent(merchantId: string, eventId: string): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }>;
+}

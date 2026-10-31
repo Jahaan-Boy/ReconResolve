@@ -33,4 +33,4 @@ backend/test/auth.test.ts
 backend/test/tenant-isolation.test.ts
 
 
-DAY_14_PLAN.md
+plan.md

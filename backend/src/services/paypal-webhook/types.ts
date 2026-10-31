@@ -16,6 +16,7 @@ export interface IngestWebhookInput {
     transmissionId: string | null;
     transmissionTime: Date | null;
     payload: Record<string, unknown>;
+    correlationId?: string;
 }
 
 export type IngestOutcome = 'accepted' | 'duplicate';

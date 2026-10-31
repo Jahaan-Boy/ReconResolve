@@ -33,6 +33,9 @@ export function isValidPayPalCertUrl(certUrl: string): boolean {
     try {
         const parsed = new URL(certUrl);
         if (parsed.protocol !== 'https:') return false;
+        // SSRF protection: reject non-standard HTTPS ports and credential embedding
+        if (parsed.port && parsed.port !== '443') return false;
+        if (parsed.username || parsed.password) return false;
         const host = parsed.hostname.toLowerCase();
         return host === 'paypal.com' || host.endsWith('.paypal.com');
     } catch {
@@ -80,7 +83,6 @@ export function createPayPalWebhookRouter(deps: WebhookRouterDeps = {}): Router 
         '/:providerConnectionId',
         express.raw({ type: 'application/json', limit: '1mb' }),
         async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-            const startedAt = Date.now();
             const { providerConnectionId } = req.params;
 
             try {
@@ -215,6 +217,8 @@ export function createPayPalWebhookRouter(deps: WebhookRouterDeps = {}): Router 
                     transmissionDate = parsedDate;
                 }
 
+                const correlationId = (req.headers['x-correlation-id'] as string) || undefined;
+
                 try {
                     const persistResult = await ingest(db, {
                         connection,
@@ -224,6 +228,7 @@ export function createPayPalWebhookRouter(deps: WebhookRouterDeps = {}): Router 
                         transmissionId,
                         transmissionTime: transmissionDate,
                         payload: parsedBody,
+                        correlationId,
                     });
 
                     if (persistResult.outcome === 'duplicate') {
