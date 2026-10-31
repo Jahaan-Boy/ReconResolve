@@ -92,6 +92,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detail, setDetail] = useState<ExceptionDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    const [detailError, setDetailError] = useState<string | null>(null);
 
     // Mobile workbench toggle
     const [showMobileDetail, setShowMobileDetail] = useState(false);
@@ -254,11 +255,17 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 if (res.items.length > 0) {
                     setSelectedId((prev) => {
                         const exists = res.items.some((i) => i.id === prev);
-                        return exists ? prev : res.items[0].id;
+                        if (!exists) {
+                            setDetail(null);
+                            setDetailError(null);
+                            return res.items[0].id;
+                        }
+                        return prev;
                     });
                 } else {
                     setSelectedId(null);
                     setDetail(null);
+                    setDetailError(null);
                 }
             } catch (err: unknown) {
                 if (reqId !== queueRequestIdRef.current) return;
@@ -279,6 +286,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         async (targetMerchantId: string, exceptionId: string) => {
             const reqId = ++detailRequestIdRef.current;
             setLoadingDetail(true);
+            setDetailError(null);
             try {
                 const data = await adaptiveApiClient.getException(targetMerchantId, exceptionId);
                 if (reqId !== detailRequestIdRef.current) return;
@@ -286,6 +294,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
             } catch (err: unknown) {
                 if (reqId !== detailRequestIdRef.current) return;
                 const message = err instanceof Error ? err.message : 'Failed to load details';
+                setDetailError(message);
                 addToast('error', `Failed to load details for ${exceptionId}: ${message}`);
             } finally {
                 if (reqId === detailRequestIdRef.current) {
@@ -350,6 +359,8 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         setStatusCounts(undefined);
         setSelectedId(null);
         setDetail(null);
+        setActiveAction(null);
+        setConflictWarning(null);
         setCursorHistory([]);
         setFilters((prev) => ({
             ...prev,
@@ -521,6 +532,12 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     };
 
     const handleSelectRow = (id: string) => {
+        if (id !== selectedId) {
+            setDetail(null);
+            setDetailError(null);
+            setActiveAction(null);
+            setConflictWarning(null);
+        }
         setSelectedId(id);
         setShowMobileDetail(true);
     };
@@ -603,6 +620,10 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                             setIsReconModalOpen(true);
                         }}
                         onNavigateToException={(exceptionId) => {
+                            if (exceptionId !== selectedId) {
+                                setDetail(null);
+                                setDetailError(null);
+                            }
                             setSelectedId(exceptionId);
                             setConsoleView('workbench');
                             setShowMobileDetail(true);
@@ -649,9 +670,16 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                     >
                         <ExceptionInspector
                             exception={detail}
+                            selectedId={selectedId}
                             merchantId={merchantId}
                             operatorContext={operatorContext}
                             loading={loadingDetail}
+                            error={detailError}
+                            onRetry={() => {
+                                if (selectedId) {
+                                    loadDetail(merchantId, selectedId);
+                                }
+                            }}
                             onTriggerAction={handleTriggerAction}
                             actionInProgress={isSubmittingAction}
                             onCloseInspector={() => setShowMobileDetail(false)}

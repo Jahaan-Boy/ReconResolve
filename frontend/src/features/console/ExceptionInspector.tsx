@@ -3,7 +3,7 @@ import { ArrowLeft, Check, Copy, FileSpreadsheet } from 'lucide-react';
 import type { ExceptionAction, ExceptionDetail, OperatorContext } from '@/services/api/types';
 import { StatusBadge } from '@/components/fintech/StatusBadge';
 import { ExceptionTypeBadge } from '@/components/fintech/ExceptionTypeBadge';
-import { EmptyState } from '@/components/fintech/FeedbackStates';
+import { EmptyState, ErrorState } from '@/components/fintech/FeedbackStates';
 import { InspectorSkeleton } from '@/components/fintech/Skeleton';
 import { DiscrepancySummary } from './DiscrepancySummary';
 import { AIInvestigationPanel } from './AIInvestigationPanel';
@@ -15,9 +15,12 @@ import { formatTimestamp, truncateId } from '@/lib/formatters';
 
 interface ExceptionInspectorProps {
     exception: ExceptionDetail | null;
+    selectedId?: string | null;
     merchantId?: string;
     operatorContext?: OperatorContext;
     loading: boolean;
+    error?: string | null;
+    onRetry?: () => void;
     onTriggerAction: (action: ExceptionAction) => void;
     actionInProgress: boolean;
     onCloseInspector?: () => void;
@@ -26,9 +29,12 @@ interface ExceptionInspectorProps {
 
 export function ExceptionInspector({
     exception,
+    selectedId,
     merchantId,
     operatorContext,
     loading,
+    error,
+    onRetry,
     onTriggerAction,
     actionInProgress,
     onCloseInspector,
@@ -36,7 +42,21 @@ export function ExceptionInspector({
 }: ExceptionInspectorProps) {
     const [copied, setCopied] = useState(false);
 
-    if (loading && !exception) {
+    if (error) {
+        return (
+            <div className="h-full flex items-center justify-center bg-slate-50/40 p-8">
+                <ErrorState
+                    title="Failed to load exception details"
+                    message={error}
+                    onRetry={onRetry}
+                />
+            </div>
+        );
+    }
+
+    // Never display stale data from a previously selected row while fetching the new one
+    const isMismatched = Boolean(selectedId && exception && exception.id !== selectedId);
+    if ((loading && !exception) || isMismatched) {
         return (
             <div className="h-full overflow-y-auto bg-slate-50/50">
                 <InspectorSkeleton />

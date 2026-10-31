@@ -38,6 +38,19 @@ const KNOWN_TRANSIENT_CODES = new Set([
     'EAI_AGAIN',
 ]);
 
+const PERMANENT_ERROR_CODES = new Set([
+    'INVALID_SIGNATURE',
+    'INVALID_JSON',
+    'INVALID_REQUEST_BODY',
+    'INVALID_EVENT_ENVELOPE',
+    'INVALID_CERT_URL',
+    'VALIDATION_FAILED',
+    'UNAUTHORIZED',
+    'FORBIDDEN',
+    'NOT_FOUND',
+    'CONNECTION_NOT_FOUND',
+]);
+
 export function isTransientError(error: unknown): boolean {
     if (error instanceof TransientError) {
         return true;
@@ -45,13 +58,56 @@ export function isTransientError(error: unknown): boolean {
     if (error instanceof PermanentError) {
         return false;
     }
+    if (error instanceof SyntaxError) {
+        return false;
+    }
 
     if (typeof error === 'object' && error !== null) {
-        const anyError = error as { code?: unknown; isRetryable?: unknown; name?: unknown };
-        if (typeof anyError.code === 'string' && KNOWN_TRANSIENT_CODES.has(anyError.code)) {
-            return true;
+        const anyError = error as {
+            code?: unknown;
+            status?: unknown;
+            statusCode?: unknown;
+            isRetryable?: unknown;
+            isTransient?: unknown;
+            name?: unknown;
+        };
+
+        if (anyError.isTransient === false || anyError.isRetryable === false) {
+            return false;
         }
-        if (anyError.isRetryable === true) {
+
+        if (anyError.name === 'ZodError') {
+            return false;
+        }
+
+        const status =
+            typeof anyError.status === 'number'
+                ? anyError.status
+                : typeof anyError.statusCode === 'number'
+                ? anyError.statusCode
+                : null;
+        if (status !== null) {
+            if (status === 408 || status === 429) {
+                return true;
+            }
+            if (status >= 400 && status < 500) {
+                return false;
+            }
+            if (status >= 500) {
+                return true;
+            }
+        }
+
+        if (typeof anyError.code === 'string') {
+            if (KNOWN_TRANSIENT_CODES.has(anyError.code)) {
+                return true;
+            }
+            if (PERMANENT_ERROR_CODES.has(anyError.code)) {
+                return false;
+            }
+        }
+
+        if (anyError.isRetryable === true || anyError.isTransient === true) {
             return true;
         }
         if (anyError.name === 'AbortError') {

@@ -12,6 +12,7 @@ import {
     DashboardError,
     type DashboardService,
 } from '../services/dashboard';
+import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_RANGE_MS = 90 * 24 * 60 * 60 * 1000;
@@ -86,7 +87,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps = {}): Router {
             }
         }
 
-        console.error('[DashboardRouter] Unexpected error:', err);
+        console.error('[DashboardRouter] Unexpected error:', sanitizeErrorMessage(err));
         res.status(500).json({
             error: 'INTERNAL_SERVER_ERROR',
             message: 'An unexpected internal error occurred',

@@ -226,9 +226,12 @@ export function evaluateMatch(
     // 4. Rule 3: Exact Amount + Currency within Narrow Time Window
     // -------------------------------------------------------------------------
     const txnTime = transaction.occurredAt.getTime();
+    const txnCurrency = (transaction.currency || '').trim().toUpperCase();
     const amountTimeCandidates = candidateOrders.filter((order) => {
         if (order.status === 'CANCELLED') return false;
-        if (order.currency.toUpperCase() !== transaction.currency.toUpperCase()) return false;
+        if (order.amountMinor <= 0n) return false;
+        const orderCurrency = (order.currency || '').trim().toUpperCase();
+        if (!orderCurrency || !txnCurrency || orderCurrency !== txnCurrency) return false;
         if (order.amountMinor !== transaction.amountMinor) return false;
 
         const orderTime = order.orderedAt.getTime();

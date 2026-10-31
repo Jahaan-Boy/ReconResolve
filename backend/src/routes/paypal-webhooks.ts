@@ -29,6 +29,17 @@ const REQUIRED_HEADERS = [
     'paypal-transmission-time',
 ] as const;
 
+export function isValidPayPalCertUrl(certUrl: string): boolean {
+    try {
+        const parsed = new URL(certUrl);
+        if (parsed.protocol !== 'https:') return false;
+        const host = parsed.hostname.toLowerCase();
+        return host === 'paypal.com' || host.endsWith('.paypal.com');
+    } catch {
+        return false;
+    }
+}
+
 function getDefaultVerifier(): WebhookVerifier {
     const clientId = process.env.PAYPAL_CLIENT_ID || '';
     const clientSecret = process.env.PAYPAL_CLIENT_SECRET || '';
@@ -122,6 +133,14 @@ export function createPayPalWebhookRouter(deps: WebhookRouterDeps = {}): Router 
                 const transmissionId = req.headers['paypal-transmission-id'] as string;
                 const transmissionSig = req.headers['paypal-transmission-sig'] as string;
                 const transmissionTime = req.headers['paypal-transmission-time'] as string;
+
+                if (!isValidPayPalCertUrl(certUrl)) {
+                    res.status(400).json({
+                        error: 'INVALID_CERT_URL',
+                        message: 'Header paypal-cert-url must be a valid HTTPS URL hosted on paypal.com',
+                    });
+                    return;
+                }
 
                 // 4. Resolve provider connection from trusted database state
                 let db: WebhookIngressDb;

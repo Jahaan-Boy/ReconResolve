@@ -12,6 +12,7 @@ import {
     type MerchantOrderService,
 } from '../services/merchant-order/merchant-order.service';
 import { MerchantOrderStatus } from '../services/merchant-order/types';
+import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -115,7 +116,7 @@ export function createMerchantOrderRouter(deps: MerchantOrderRouterDeps = {}): R
             return;
         }
 
-        console.error('[MerchantOrderRouter] Unexpected error:', err);
+        console.error('[MerchantOrderRouter] Unexpected error:', sanitizeErrorMessage(err));
         res.status(500).json({
             error: 'INTERNAL_SERVER_ERROR',
             message: 'An unexpected internal error occurred',

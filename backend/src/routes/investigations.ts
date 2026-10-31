@@ -12,6 +12,8 @@ import {
     type InvestigationService,
 } from '../services/ai-investigator/investigation.service';
 
+import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
+
 export interface InvestigationRouterDeps {
     service?: InvestigationService;
     authGuard?: RequestHandler;
@@ -55,7 +57,7 @@ export function createInvestigationRouter(deps: InvestigationRouterDeps = {}): R
             return;
         }
 
-        console.error('[InvestigationRouter] Unexpected error:', err);
+        console.error('[InvestigationRouter] Unexpected error:', sanitizeErrorMessage(err));
         res.status(500).json({
             error: 'INTERNAL_SERVER_ERROR',
             message: 'An unexpected internal error occurred',

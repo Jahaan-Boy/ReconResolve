@@ -81,10 +81,15 @@ export function createExceptionLifecycleService(
         }
     }
 
+    const ALLOWED_MUTATION_ROLES = new Set(['OWNER', 'ADMIN', 'ANALYST', 'OPERATOR']);
+
     function assertMutationPermission(context: OperatorContext): void {
         const roles = context.roles ?? ['OPERATOR'];
-        const isViewer = roles.includes('VIEWER') && !roles.includes('OPERATOR') && !roles.includes('ADMIN');
-        if (isViewer) {
+        if (roles.length === 0) {
+            throw ExceptionManagementError.forbidden('User has no authorized role to modify exception state');
+        }
+        const hasPermittedRole = roles.some((r) => ALLOWED_MUTATION_ROLES.has(r));
+        if (!hasPermittedRole || (roles.length === 1 && roles[0] === 'VIEWER')) {
             throw ExceptionManagementError.forbidden('Read-only viewers cannot modify exception state');
         }
     }

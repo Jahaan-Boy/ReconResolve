@@ -13,6 +13,7 @@ import {
     createReconciliationService,
     type ReconciliationService,
 } from '../services/reconciliation/reconciliation.service';
+import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_WINDOW_MS = 90 * 24 * 60 * 60 * 1000; // 90 days maximum bounded window
@@ -163,7 +164,7 @@ export function createReconciliationRunRouter(deps: ReconciliationRunRouterDeps 
             }
         }
 
-        console.error('[ReconciliationRunRouter] Unexpected error:', err);
+        console.error('[ReconciliationRunRouter] Unexpected error:', sanitizeErrorMessage(err));
         res.status(500).json({
             error: 'INTERNAL_SERVER_ERROR',
             message: 'An unexpected internal error occurred',

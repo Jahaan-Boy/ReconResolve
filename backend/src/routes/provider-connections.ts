@@ -10,6 +10,7 @@ import {
     createProviderConnectionService,
     type ProviderConnectionService,
 } from '../services/provider-connection/provider-connection.service';
+import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -57,7 +58,7 @@ export function createProviderConnectionRouter(deps: ProviderConnectionRouterDep
             return;
         }
 
-        console.error('[ProviderConnectionRouter] Unexpected error:', err);
+        console.error('[ProviderConnectionRouter] Unexpected error:', sanitizeErrorMessage(err));
         res.status(500).json({
             error: 'INTERNAL_SERVER_ERROR',
             message: 'An unexpected internal error occurred',

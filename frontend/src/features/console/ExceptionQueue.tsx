@@ -147,7 +147,8 @@ export function ExceptionQueue({
                 field: 'id',
                 minWidth: 175,
                 flex: 1.2,
-                sortable: false,
+                sortable: true,
+                valueGetter: (params) => params.data?.id || '',
                 cellRenderer: (params: CustomCellRendererProps<ExceptionSummary>) => {
                     const item = params.data;
                     if (!item) return null;
@@ -189,7 +190,8 @@ export function ExceptionQueue({
                 width: 130,
                 minWidth: 120,
                 maxWidth: 145,
-                sortable: false,
+                sortable: true,
+                valueGetter: (params) => params.data?.status || '',
                 cellRenderer: (params: CustomCellRendererProps<ExceptionSummary>) => {
                     const item = params.data;
                     if (!item) return null;
@@ -205,7 +207,8 @@ export function ExceptionQueue({
                 colId: 'breakEvidence',
                 minWidth: 170,
                 flex: 1.4,
-                sortable: false,
+                sortable: true,
+                valueGetter: (params) => (params.data ? getDiscrepancySummary(params.data) : ''),
                 cellRenderer: (params: CustomCellRendererProps<ExceptionSummary>) => {
                     const item = params.data;
                     if (!item) return null;
@@ -245,7 +248,8 @@ export function ExceptionQueue({
                 colId: 'orderTxn',
                 minWidth: 140,
                 flex: 1,
-                sortable: false,
+                sortable: true,
+                valueGetter: (params) => `${params.data?.merchantOrderId || ''} ${params.data?.providerTransactionId || ''}`,
                 cellRenderer: (params: CustomCellRendererProps<ExceptionSummary>) => {
                     const item = params.data;
                     if (!item) return null;
@@ -282,7 +286,14 @@ export function ExceptionQueue({
                 width: 105,
                 minWidth: 95,
                 maxWidth: 120,
-                sortable: false,
+                sortable: true,
+                comparator: (valueA, valueB) => {
+                    const timeA = valueA ? new Date(valueA).getTime() : 0;
+                    const timeB = valueB ? new Date(valueB).getTime() : 0;
+                    const validA = Number.isFinite(timeA) ? timeA : 0;
+                    const validB = Number.isFinite(timeB) ? timeB : 0;
+                    return validA - validB;
+                },
                 cellRenderer: (params: CustomCellRendererProps<ExceptionSummary>) => {
                     const item = params.data;
                     if (!item) return null;
@@ -371,20 +382,23 @@ export function ExceptionQueue({
                                 'flowops-row-selected': (params) => params.data?.id === selectedId,
                             }}
                             onRowClicked={(event) => {
-                                if (event.data?.id) {
+                                if (event.data?.id && event.data.id !== selectedId) {
                                     onSelectException(event.data.id);
                                 }
                             }}
                             onCellKeyDown={(event) => {
                                 const kbEvent = event.event as KeyboardEvent | null | undefined;
-                                if ((kbEvent?.key === 'Enter' || kbEvent?.key === ' ') && event.data?.id) {
+                                if ((kbEvent?.key === 'Enter' || kbEvent?.key === ' ') && event.data?.id && event.data.id !== selectedId) {
                                     onSelectException(event.data.id);
                                 }
                             }}
                             onSelectionChanged={(event) => {
                                 const selectedNodes = event.api.getSelectedNodes();
                                 if (selectedNodes.length > 0 && selectedNodes[0].data?.id) {
-                                    onSelectException(selectedNodes[0].data.id);
+                                    const newId = selectedNodes[0].data.id;
+                                    if (newId !== selectedId) {
+                                        onSelectException(newId);
+                                    }
                                 }
                             }}
                             suppressCellFocus={false}

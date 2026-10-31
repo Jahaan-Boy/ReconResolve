@@ -15,6 +15,7 @@ import {
     extractSessionToken,
     UUID_REGEX,
 } from '../auth/middleware';
+import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 export interface AuthRouterDeps {
     getDb?: () => PrismaClient;
@@ -176,7 +177,7 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
                 return;
             }
 
-            console.error('[AuthRouter] Unexpected error in login:', err);
+            console.error('[AuthRouter] Unexpected error in login:', sanitizeErrorMessage(err));
             res.status(500).json({
                 error: 'INTERNAL_SERVER_ERROR',
                 message: 'An unexpected internal error occurred',
@@ -222,7 +223,7 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
                 activeMerchant,
             });
         } catch (err) {
-            console.error('[AuthRouter] Unexpected error in /me:', err);
+            console.error('[AuthRouter] Unexpected error in /me:', sanitizeErrorMessage(err));
             res.status(500).json({
                 error: 'INTERNAL_SERVER_ERROR',
                 message: 'Failed to retrieve current user session',
@@ -299,7 +300,7 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
                 message: 'Logged out successfully',
             });
         } catch (err) {
-            console.error('[AuthRouter] Unexpected error in logout:', err);
+            console.error('[AuthRouter] Unexpected error in logout:', sanitizeErrorMessage(err));
             res.status(500).json({
                 error: 'INTERNAL_SERVER_ERROR',
                 message: 'Failed to log out cleanly',

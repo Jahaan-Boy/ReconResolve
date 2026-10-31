@@ -18,6 +18,7 @@ import {
     createInvestigationRouter,
     type InvestigationRouterDeps,
 } from './investigations';
+import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 export interface ExceptionRouterDeps {
     service?: ExceptionLifecycleService;
@@ -140,7 +141,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
             return;
         }
 
-        console.error('[ExceptionRouter] Unexpected error:', err);
+        console.error('[ExceptionRouter] Unexpected error:', sanitizeErrorMessage(err));
         res.status(500).json({
             error: 'INTERNAL_SERVER_ERROR',
             message: 'An unexpected internal error occurred',

@@ -60,10 +60,15 @@ function isWebhookEventConflict(error: unknown): boolean {
     const { code, meta } = error as { code?: unknown; meta?: { target?: unknown } };
     if (code !== 'P2002') return false;
     const target = meta?.target;
+    if (!target) return true;
     const names = Array.isArray(target) ? target.map(String) : typeof target === 'string' ? [target] : [];
     return names.some((name) => {
         const cleaned = name.toLowerCase().replace(/_/g, '');
-        return cleaned.includes('providereventid') || cleaned.includes('providerconnectionid');
+        return (
+            cleaned.includes('providereventid') ||
+            cleaned.includes('providerconnectionid') ||
+            cleaned.includes('webhookevent')
+        );
     });
 }
 
