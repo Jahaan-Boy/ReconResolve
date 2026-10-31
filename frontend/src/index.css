@@ -140,3 +140,65 @@
 @utility bg-grain {
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
+
+/* FlowOps Console AG Grid Customizations */
+.ag-theme-quartz.flowops-grid {
+    --ag-font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --ag-font-size: 12px;
+    --ag-grid-size: 5px;
+    --ag-header-height: 38px;
+    --ag-row-height: 64px;
+    --ag-background-color: #ffffff;
+    --ag-foreground-color: #1e293b;
+    --ag-header-background-color: #f8fafc;
+    --ag-header-foreground-color: #64748b;
+    --ag-border-color: #e2e8f0;
+    --ag-row-border-color: #f1f5f9;
+    --ag-row-hover-color: #f8fafc;
+    --ag-selected-row-background-color: #eff6ff;
+    --ag-cell-horizontal-padding: 12px;
+    --ag-borders: none;
+    --ag-header-column-separator-display: none;
+    --ag-border-radius: 0;
+}
+
+.ag-theme-quartz.flowops-grid .ag-root-wrapper {
+    border: none !important;
+    background: transparent !important;
+}
+
+.ag-theme-quartz.flowops-grid .ag-header {
+    border-bottom: 1px solid #e2e8f0 !important;
+    background-color: #f8fafc !important;
+}
+
+.ag-theme-quartz.flowops-grid .ag-header-cell-label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.ag-theme-quartz.flowops-grid .ag-row {
+    cursor: pointer;
+    transition: background-color 120ms ease;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.ag-theme-quartz.flowops-grid .ag-row.flowops-row-selected,
+.ag-theme-quartz.flowops-grid .ag-row.ag-row-selected {
+    background-color: #eff6ff !important;
+    border-left: 3px solid #2457d6 !important;
+    font-weight: 500;
+}
+
+.ag-theme-quartz.flowops-grid .ag-cell {
+    display: flex;
+    align-items: center;
+}
+
+.ag-theme-quartz.flowops-grid .ag-cell-focus:not(.ag-cell-range-selected):focus-within {
+    outline: 1.5px solid #2457d6 !important;
+    outline-offset: -1.5px;
+}

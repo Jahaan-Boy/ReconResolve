@@ -24,15 +24,19 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         this.baseUrl = baseUrl;
     }
 
-    private buildHeaders(ctx: OperatorContext): HeadersInit {
-        const correlationId = ctx.correlationId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `corr-${Date.now()}`);
-        return {
+    private buildHeaders(ctx?: OperatorContext): Record<string, string> {
+        const correlationId = ctx?.correlationId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `corr-${Date.now()}`);
+        const headers: Record<string, string> = {
             'Content-Type': 'application/json',
-            'x-operator-id': ctx.operatorId,
-            'x-operator-role': ctx.role,
+            Accept: 'application/json',
             'x-correlation-id': correlationId,
-            'x-authorized-merchants': (ctx.authorizedMerchants ?? ['*']).join(','),
         };
+        if (ctx) {
+            headers['x-operator-id'] = ctx.operatorId;
+            headers['x-operator-role'] = ctx.role;
+            headers['x-authorized-merchants'] = (ctx.authorizedMerchants ?? ['*']).join(',');
+        }
+        return headers;
     }
 
     private async handleResponse<T>(res: Response): Promise<T> {
@@ -187,14 +191,12 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         exceptionId: string,
         input?: TriggerInvestigationInput,
         signal?: AbortSignal,
+        ctx?: OperatorContext,
     ): Promise<InvestigationRecord> {
         const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/investigations`;
         const res = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-            },
+            headers: this.buildHeaders(ctx),
             credentials: 'same-origin',
             body: JSON.stringify(input || {}),
             signal,
@@ -207,13 +209,12 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         merchantId: string,
         exceptionId: string,
         signal?: AbortSignal,
+        ctx?: OperatorContext,
     ): Promise<InvestigationRecord | null> {
         const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/investigations/latest`;
         const res = await fetch(url, {
             method: 'GET',
-            headers: {
-                Accept: 'application/json',
-            },
+            headers: this.buildHeaders(ctx),
             credentials: 'same-origin',
             signal,
         });
@@ -226,13 +227,12 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         merchantId: string,
         exceptionId: string,
         signal?: AbortSignal,
+        ctx?: OperatorContext,
     ): Promise<InvestigationRecord[]> {
         const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/exceptions/${encodeURIComponent(exceptionId)}/investigations`;
         const res = await fetch(url, {
             method: 'GET',
-            headers: {
-                Accept: 'application/json',
-            },
+            headers: this.buildHeaders(ctx),
             credentials: 'same-origin',
             signal,
         });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Check, Copy, FileSpreadsheet } from 'lucide-react';
-import type { ExceptionAction, ExceptionDetail } from '@/services/api/types';
+import type { ExceptionAction, ExceptionDetail, OperatorContext } from '@/services/api/types';
 import { StatusBadge } from '@/components/fintech/StatusBadge';
 import { ExceptionTypeBadge } from '@/components/fintech/ExceptionTypeBadge';
 import { EmptyState } from '@/components/fintech/FeedbackStates';
@@ -16,6 +16,7 @@ import { formatTimestamp, truncateId } from '@/lib/formatters';
 interface ExceptionInspectorProps {
     exception: ExceptionDetail | null;
     merchantId?: string;
+    operatorContext?: OperatorContext;
     loading: boolean;
     onTriggerAction: (action: ExceptionAction) => void;
     actionInProgress: boolean;
@@ -26,6 +27,7 @@ interface ExceptionInspectorProps {
 export function ExceptionInspector({
     exception,
     merchantId,
+    operatorContext,
     loading,
     onTriggerAction,
     actionInProgress,
@@ -141,6 +143,7 @@ export function ExceptionInspector({
             <AIInvestigationPanel
                 exception={exception}
                 merchantId={merchantId || exception.merchantId}
+                operatorContext={operatorContext}
                 onInspectEvidence={handleInspectEvidence}
             />
 

@@ -650,6 +650,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                         <ExceptionInspector
                             exception={detail}
                             merchantId={merchantId}
+                            operatorContext={operatorContext}
                             loading={loadingDetail}
                             onTriggerAction={handleTriggerAction}
                             actionInProgress={isSubmittingAction}

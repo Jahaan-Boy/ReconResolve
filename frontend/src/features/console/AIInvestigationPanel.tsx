@@ -12,18 +12,20 @@ import {
     Sparkles,
 } from 'lucide-react';
 import { useAiInvestigation } from '@/hooks/useAiInvestigation';
-import type { ConfidenceLevel, ExceptionDetail } from '@/services/api/types';
+import type { ConfidenceLevel, ExceptionDetail, OperatorContext } from '@/services/api/types';
 import { formatTimestamp } from '@/lib/formatters';
 
 interface AIInvestigationPanelProps {
     exception: ExceptionDetail;
     merchantId: string;
+    operatorContext?: OperatorContext;
     onInspectEvidence?: (refId: string) => void;
 }
 
 export function AIInvestigationPanel({
     exception,
     merchantId,
+    operatorContext,
     onInspectEvidence,
 }: AIInvestigationPanelProps) {
     const {
@@ -37,6 +39,7 @@ export function AIInvestigationPanel({
         exceptionId: exception.id,
         exceptionVersion: exception.version,
         exceptionUpdatedAt: exception.updatedAt,
+        operatorContext,
     });
 
     const [copiedRef, setCopiedRef] = useState<string | null>(null);
