@@ -6,6 +6,7 @@ export interface OutboxConfig {
     readonly baseBackoffMs: number;
     readonly maxBackoffMs: number;
     readonly drainTimeoutMs: number;
+    readonly concurrency: number;
 }
 
 export const DEFAULT_OUTBOX_CONFIG: OutboxConfig = {
@@ -16,6 +17,7 @@ export const DEFAULT_OUTBOX_CONFIG: OutboxConfig = {
     baseBackoffMs: 1_000,
     maxBackoffMs: 60_000,
     drainTimeoutMs: 10_000,
+    concurrency: 5,
 };
 
 function parseBoundedInteger(
@@ -94,6 +96,14 @@ export function loadOutboxConfig(env: Record<string, string | undefined> = proce
         60_000,
     );
 
+    const concurrency = parseBoundedInteger(
+        'OUTBOX_CONCURRENCY',
+        env['OUTBOX_CONCURRENCY'],
+        DEFAULT_OUTBOX_CONFIG.concurrency,
+        1,
+        50,
+    );
+
     // Cross-field validations
     if (baseBackoffMs > maxBackoffMs) {
         throw new Error(
@@ -109,5 +119,6 @@ export function loadOutboxConfig(env: Record<string, string | undefined> = proce
         baseBackoffMs,
         maxBackoffMs,
         drainTimeoutMs,
+        concurrency,
     };
 }

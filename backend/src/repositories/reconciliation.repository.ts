@@ -237,6 +237,89 @@ export function createReconciliationRepository(db: ReconciliationDb): Reconcilia
             }));
         },
 
+        async findCandidateOrdersBatch(
+            merchantId: string,
+            transactions: ReconciliationTransaction[],
+            timeWindowToleranceMs: number,
+        ): Promise<Map<string, CandidateOrder[]>> {
+            const resultMap = new Map<string, CandidateOrder[]>();
+            if (transactions.length === 0) {
+                return resultMap;
+            }
+
+            const orderIds: string[] = [];
+            let minOccurred = transactions[0].occurredAt.getTime();
+            let maxOccurred = transactions[0].occurredAt.getTime();
+
+            for (const tx of transactions) {
+                if (tx.providerOrderId && tx.providerOrderId.trim() !== '') {
+                    orderIds.push(tx.providerOrderId.trim());
+                }
+                const t = tx.occurredAt.getTime();
+                if (t < minOccurred) minOccurred = t;
+                if (t > maxOccurred) maxOccurred = t;
+            }
+
+            const minTime = new Date(minOccurred - timeWindowToleranceMs);
+            const maxTime = new Date(maxOccurred + timeWindowToleranceMs);
+
+            const conditions: Prisma.MerchantOrderWhereInput[] = [];
+
+            if (orderIds.length > 0) {
+                conditions.push({ externalOrderId: { in: orderIds } });
+            }
+
+            conditions.push({
+                orderedAt: {
+                    gte: minTime,
+                    lte: maxTime,
+                },
+            });
+
+            const rows = await db.merchantOrder.findMany({
+                where: {
+                    merchantId,
+                    OR: conditions,
+                },
+                orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }],
+                take: 500,
+            });
+
+            const allCandidates: CandidateOrder[] = rows.map((r: any) => ({
+                id: r.id,
+                merchantId: r.merchantId,
+                externalOrderId: r.externalOrderId,
+                amountMinor: BigInt(r.amountMinor),
+                currency: r.currency,
+                status: r.status,
+                orderedAt: r.orderedAt,
+                metadata: (r.metadata as Record<string, unknown>) ?? null,
+            }));
+
+            for (const tx of transactions) {
+                const txMinTime = new Date(tx.occurredAt.getTime() - timeWindowToleranceMs);
+                const txMaxTime = new Date(tx.occurredAt.getTime() + timeWindowToleranceMs);
+                const trimmedOrderId = tx.providerOrderId?.trim();
+
+                const filtered = allCandidates.filter((cand) => {
+                    const matchesOrderId = Boolean(
+                        trimmedOrderId && cand.externalOrderId === trimmedOrderId,
+                    );
+                    const matchesAmountAndWindow =
+                        cand.currency === tx.currency &&
+                        cand.amountMinor === tx.amountMinor &&
+                        cand.orderedAt >= txMinTime &&
+                        cand.orderedAt <= txMaxTime;
+
+                    return matchesOrderId || matchesAmountAndWindow;
+                });
+
+                resultMap.set(tx.id, filtered.slice(0, 50));
+            }
+
+            return resultMap;
+        },
+
         async persistBatchOutcomes(
             runId: string,
             merchantId: string,

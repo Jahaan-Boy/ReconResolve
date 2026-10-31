@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { MotionConfig } from 'motion/react';
-import { LandingPage } from '@/features/landing/LandingPage';
-import { OperatorConsolePage } from '@/features/console/OperatorConsolePage';
+
+const LandingPage = lazy(() =>
+    import('@/features/landing/LandingPage').then((m) => ({ default: m.LandingPage }))
+);
+const OperatorConsolePage = lazy(() =>
+    import('@/features/console/OperatorConsolePage').then((m) => ({ default: m.OperatorConsolePage }))
+);
 
 type AppView = 'landing' | 'console';
 
@@ -13,6 +18,17 @@ function getInitialView(): AppView {
         return 'console';
     }
     return 'landing';
+}
+
+function PageFallback() {
+    return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-mono text-slate-400">Loading FlowOps...</span>
+            </div>
+        </div>
+    );
 }
 
 export default function App() {
@@ -43,11 +59,13 @@ export default function App() {
 
     return (
         <MotionConfig reducedMotion="user">
-            {view === 'console' ? (
-                <OperatorConsolePage onNavigateLanding={() => navigateTo('landing')} />
-            ) : (
-                <LandingPage onNavigateConsole={() => navigateTo('console')} />
-            )}
+            <Suspense fallback={<PageFallback />}>
+                {view === 'console' ? (
+                    <OperatorConsolePage onNavigateLanding={() => navigateTo('landing')} />
+                ) : (
+                    <LandingPage onNavigateConsole={() => navigateTo('console')} />
+                )}
+            </Suspense>
         </MotionConfig>
     );
 }

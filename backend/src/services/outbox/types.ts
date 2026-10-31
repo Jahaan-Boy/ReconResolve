@@ -51,4 +51,10 @@ export interface OutboxRepository {
         errorMessage: string,
         now?: Date,
     ): Promise<boolean>;
+
+    releaseClaim?(
+        id: string,
+        claimToken: string,
+        now?: Date,
+    ): Promise<boolean>;
 }

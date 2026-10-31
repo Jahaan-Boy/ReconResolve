@@ -147,6 +147,12 @@ export interface ReconciliationRepository {
         timeWindowToleranceMs: number,
     ): Promise<CandidateOrder[]>;
 
+    findCandidateOrdersBatch?(
+        merchantId: string,
+        transactions: ReconciliationTransaction[],
+        timeWindowToleranceMs: number,
+    ): Promise<Map<string, CandidateOrder[]>>;
+
     persistBatchOutcomes(
         runId: string,
         merchantId: string,
@@ -278,5 +284,3 @@ export interface ListMatchesResult {
         totalCount: number;
     };
 }
-
-

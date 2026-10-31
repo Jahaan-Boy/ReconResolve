@@ -1,8 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import type { CustomCellRendererProps } from 'ag-grid-react';
-import type { ColDef, GetRowIdParams } from 'ag-grid-community';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { AgGridReact, AllCommunityModule, ModuleRegistry } from '@/components/grid/AgGridWrapper';
+import type { ColDef, CustomCellRendererProps, GetRowIdParams } from '@/components/grid/AgGridWrapper';
 import { ChevronLeft, ChevronRight, Copy, Check, Download, Filter } from 'lucide-react';
 import type { ExceptionStatus, ExceptionSummary, ListExceptionsFilter, PaginationMetadata } from '@/services/api/types';
 import { StatusBadge } from '@/components/fintech/StatusBadge';
@@ -13,10 +11,6 @@ import { FintechButton } from '@/components/fintech/FintechButton';
 import { ExceptionFilters } from './ExceptionFilters';
 import { formatMinorUnits, formatShortDate, truncateId } from '@/lib/formatters';
 import { exportExceptionsToCsv } from '@/lib/csv-export';
-
-// Core AG Grid and Quartz theme stylesheets
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-quartz.css';
 
 // Register AG Grid Community modules
 ModuleRegistry.registerModules([AllCommunityModule]);

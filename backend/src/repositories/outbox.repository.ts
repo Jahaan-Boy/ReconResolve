@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import type { PrismaClient } from '../generated/prisma';
 import type { ClaimedOutboxRecord, OutboxRepository } from '../services/outbox/types';
 
 export interface OutboxDb {
@@ -151,6 +150,24 @@ export function createOutboxRepository(db: OutboxDb): OutboxRepository {
                     "last_error" = ${errorMessage},
                     "locked_at" = NULL,
                     "claim_token" = NULL,
+                    "updated_at" = ${now}
+                WHERE "id" = ${id}::uuid AND "claim_token" = ${claimToken};
+            `;
+            return affected > 0;
+        },
+
+        async releaseClaim(
+            id: string,
+            claimToken: string,
+            now: Date = new Date(),
+        ): Promise<boolean> {
+            const affected = await db.$executeRaw`
+                UPDATE "outbox_events"
+                SET
+                    "status" = 'PENDING'::"OutboxStatus",
+                    "locked_at" = NULL,
+                    "claim_token" = NULL,
+                    "attempt_count" = GREATEST("attempt_count" - 1, 0),
                     "updated_at" = ${now}
                 WHERE "id" = ${id}::uuid AND "claim_token" = ${claimToken};
             `;

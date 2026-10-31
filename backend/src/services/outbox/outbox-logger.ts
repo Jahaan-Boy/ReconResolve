@@ -11,6 +11,8 @@ export interface OutboxLogEntry {
     readonly error?: string;
     readonly nextAttemptAt?: string;
     readonly batchSize?: number;
+    readonly concurrency?: number;
+    readonly inFlightCount?: number;
 }
 
 export interface OutboxLogger {

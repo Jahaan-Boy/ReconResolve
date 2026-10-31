@@ -1,8 +1,8 @@
 # ReconResolve
 
-> Multi-tenant payment reconciliation, deterministic mismatch detection, and auditable human-in-the-loop exception resolution.
+> Multi-tenant payment reconciliation, deterministic mismatch detection, grounded AI root-cause analysis, and auditable human-in-the-loop exception resolution.
 
-ReconResolve compares provider payment records with internal merchant orders, surfaces financial discrepancies with explainable evidence, and enables authorized operators to investigate, resolve, or reopen exceptions with an immutable audit trail and optimistic concurrency control.
+ReconResolve compares provider payment records with internal merchant orders, surfaces financial discrepancies with explainable evidence, generates grounded root-cause diagnoses via Google Gemini, and enables authorized operators to investigate, resolve, or reopen exceptions using a virtualized AG Grid workbench with an immutable audit trail and optimistic concurrency control.
 
 ---
 
@@ -66,14 +66,41 @@ ReconResolve compares provider payment records with internal merchant orders, su
   │  Append-Only Audit Trail (exception_audit_events committed in same transaction)        │
   │  Tenant Isolation & Role Authorization (Consistent 404 policy, VIEWER mutation blocks)  │
   └────────────────────────────────────────────────────────────────────────────────────────┘
+                                           │
+                                           ▼
+  ┌────────────────────────────────────────────────────────────────────────────────────────┐
+  │                     GROUNDED AI ROOT-CAUSE INVESTIGATOR (GEMINI)                       │
+  ├────────────────────────────────────────────────────────────────────────────────────────┤
+  │  Grounded Diagnostic Engine (/api/merchants/:merchantId/exceptions/:id/investigate)    │
+  │    ├── Tenant-Isolated Evidence Assembler (Linked Txn, Order, Run Evidence Refs)      │
+  │    ├── Google Gemini Provider Adapter (Structured JSON Mode, 15s Abort Timeout)        │
+  │    ├── Anti-Hallucination Citation Validator (Strict membership check on evidenceRefs) │
+  │    ├── Prompt Injection Defenses (<untrusted_external_content> sanitization fences)    │
+  │    └── Immutable Persistence: exception_investigations & investigation_audit_events    │
+  │  Read-Only Advisory Invariant: Never mutates exception status or alters financial data │
+  └────────────────────────────────────────────────────────────────────────────────────────┘
+                                           │
+                                           ▼
+  ┌────────────────────────────────────────────────────────────────────────────────────────┐
+  │                    ENTERPRISE OPERATOR CONSOLE (AG GRID COMMUNITY)                     │
+  ├────────────────────────────────────────────────────────────────────────────────────────┤
+  │  High-Performance Virtualized Workbench (React 19 + TypeScript + Tailwind CSS 4)       │
+  │    ├── AG Grid Queue (60fps virtualization, custom cell badges, keyboard triage: j/k)  │
+  │    ├── Split-Pane Evidence Diff (Provider Txn vs. Merchant Order with delta chips)     │
+  │    ├── Interactive AI Panel (Cited hypotheses, confidence pills, stale-state alerts)   │
+  │    ├── Action Modals with Quick Note Presets, 10-char note guard, and OCC versioning   │
+  │    └── Modal Hubs: Batch Order Ingestion Dialog & On-Demand Reconciliation Runs Hub    │
+  └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Architecture Components
 
-1. **Ingestion & Normalization:** Ingests reporting data from PayPal APIs and real-time webhooks, normalizes codes, validates signatures, and stores currency amounts strictly in `BigInt` minor units (cents) to avoid floating-point errors.
-2. **Transactional Outbox & Worker:** Commits incoming webhooks and pending outbox events in a single atomic transaction. A worker daemon uses PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` with claim tokens and exponential backoff to process background events concurrently without duplicate execution.
+1. **Ingestion & Normalization:** Ingests reporting data from PayPal APIs, batch merchant orders, and real-time webhooks, normalizes codes, validates signatures, and stores currency amounts strictly in `BigInt` minor units (cents) to avoid floating-point errors.
+2. **Transactional Outbox & Worker:** Commits incoming webhooks and pending outbox events in a single atomic transaction. A worker daemon uses PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` with claim tokens, error sanitization, and exponential backoff to process background events concurrently without duplicate execution.
 3. **Reconciliation Engine:** Deterministically matches provider transactions against merchant orders using prioritized rules, flags ambiguities, and records explainable evidence without opaque scoring.
 4. **Exception Lifecycle & Auditing:** Manages discrepancies through a strictly validated state machine (`OPEN`, `INVESTIGATING`, `RESOLVED`, `DISMISSED`) with Optimistic Concurrency Control (`version` token) and an append-only audit log. It never alters source payment records or initiates money movement.
+5. **AI Root-Cause Investigator:** Employs Google Gemini (`gemini-2.5-flash`) via `@google/genai` to generate grounded root-cause hypotheses, facts, and remediation actions. Enforces a strict read-only advisory invariant and validates at runtime that every citation refers to verified evidence references.
+6. **Enterprise Operator Console:** High-velocity React 19 / Tailwind 4 workbench powered by AG Grid Community for virtualized queue scrolling, side-by-side evidence inspection, hotkey navigation, and CSV auditing exports.
 
 ---
 
@@ -134,7 +161,19 @@ OUTBOX_POLL_INTERVAL_MS=1000
 OUTBOX_BATCH_SIZE=20
 OUTBOX_LEASE_DURATION_MS=30000
 OUTBOX_MAX_ATTEMPTS=5
+OUTBOX_BASE_BACKOFF_MS=1000
+OUTBOX_MAX_BACKOFF_MS=60000
 OUTBOX_DRAIN_TIMEOUT_MS=10000
+
+# Session & Authentication Settings
+SESSION_TTL_HOURS=168
+
+# AI Model Provider Configuration (Google Gemini)
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL_ID=gemini-2.5-flash
+
+# Optional Opt-in Live AI Smoke Test
+LIVE_AI_TEST=false
 ```
 
 ---
@@ -180,7 +219,7 @@ cd backend
 npm run outbox:worker
 ```
 
-#### Terminal 3: Frontend Landing Page
+#### Terminal 3: Frontend Application
 ```bash
 cd frontend
 npm run dev
@@ -202,6 +241,9 @@ npm run recon:run -- --merchant-slug demo-merchant
 
 # Run the full test suite
 npm test
+
+# Opt-in live smoke test against Google Gemini API (requires valid key)
+LIVE_AI_TEST=true GEMINI_API_KEY="your-key" npm test test/services/ai-investigator/gemini-live-smoke.integration.test.ts
 
 # Build production bundles
 npm run build

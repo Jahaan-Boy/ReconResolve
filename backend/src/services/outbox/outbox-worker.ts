@@ -67,6 +67,7 @@ export class OutboxWorker {
             workerId: this.workerId,
             event: 'worker_started',
             batchSize: this.config.batchSize,
+            concurrency: this.config.concurrency,
         });
 
         void this.scheduleNextPoll(0);
@@ -88,7 +89,7 @@ export class OutboxWorker {
         this.logger.info({
             workerId: this.workerId,
             event: 'worker_stopping',
-            batchSize: this.activeWorkCount,
+            inFlightCount: this.activeWorkCount,
         });
 
         if (this.activeWorkCount === 0) {
@@ -102,7 +103,7 @@ export class OutboxWorker {
                 this.logger.warn({
                     workerId: this.workerId,
                     event: 'drain_timeout_exceeded',
-                    batchSize: this.activeWorkCount,
+                    inFlightCount: this.activeWorkCount,
                 });
                 resolve();
             }, this.config.drainTimeoutMs);
@@ -144,11 +145,51 @@ export class OutboxWorker {
             claimedCount = records.length;
 
             if (claimedCount > 0) {
-                for (const record of records) {
-                    if (!this.isRunning && !this.isDraining) {
-                        break;
+                const concurrency = Math.max(
+                    1,
+                    Math.min(this.config.concurrency ?? 5, records.length),
+                );
+                let nextIndex = 0;
+                const unstartedRecords: ClaimedOutboxRecord[] = [];
+
+                const runWorkerSlot = async () => {
+                    while (nextIndex < records.length) {
+                        if (!this.isRunning) {
+                            // Worker is shutting down; capture unstarted records to release
+                            unstartedRecords.push(records[nextIndex++]);
+                            continue;
+                        }
+                        const record = records[nextIndex++];
+                        await this.processRecord(record);
                     }
-                    await this.processRecord(record);
+                };
+
+                // Execute claimed records with bounded worker concurrency
+                await Promise.all(
+                    Array.from({ length: concurrency }, () => runWorkerSlot()),
+                );
+
+                // Release unstarted claims on shutdown so other workers don't wait for lease timeout
+                if (unstartedRecords.length > 0 && typeof this.repository.releaseClaim === 'function') {
+                    for (const record of unstartedRecords) {
+                        try {
+                            await this.repository.releaseClaim(record.id, record.claimToken);
+                            this.logger.info({
+                                workerId: this.workerId,
+                                event: 'claim_released_on_shutdown',
+                                outboxId: record.id,
+                                aggregateId: record.aggregateId,
+                                eventType: record.eventType,
+                            });
+                        } catch (releaseErr) {
+                            this.logger.warn({
+                                workerId: this.workerId,
+                                event: 'claim_release_failed',
+                                outboxId: record.id,
+                                error: sanitizeErrorMessage(releaseErr),
+                            });
+                        }
+                    }
                 }
             }
         } catch (error) {

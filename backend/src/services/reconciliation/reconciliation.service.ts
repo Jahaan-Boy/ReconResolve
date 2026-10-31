@@ -5,6 +5,7 @@ import { sanitizeErrorMessage } from '../outbox/error-sanitizer';
 import { ReconciliationError } from './errors';
 import { evaluateMatch } from './matching-policy';
 import type {
+    CandidateOrder,
     ListMatchesFilter,
     ListMatchesResult,
     ListRunsFilter,
@@ -204,7 +205,7 @@ export class ReconciliationService {
         }
 
         // ---------------------------------------------------------------------
-        // 4. Batch Processing Loop
+        // 4. Batch Execution Loop
         // ---------------------------------------------------------------------
         const counters = {
             totalConsidered: 0,
@@ -233,15 +234,27 @@ export class ReconciliationService {
 
                 const batchItems: MatchBatchItem[] = [];
 
+                // Use batched candidate lookup to eliminate N+1 roundtrips when supported
+                let candidateMap: Map<string, CandidateOrder[]> | null = null;
+                if (typeof this.repository.findCandidateOrdersBatch === 'function') {
+                    candidateMap = await this.repository.findCandidateOrdersBatch(
+                        input.merchantId,
+                        transactions,
+                        timeToleranceMs,
+                    );
+                }
+
                 for (const transaction of transactions) {
                     counters.totalConsidered += 1;
 
-                    // Load tenant-isolated candidates
-                    const candidateOrders = await this.repository.findCandidateOrders(
-                        input.merchantId,
-                        transaction,
-                        timeToleranceMs,
-                    );
+                    // Load tenant-isolated candidates (batched or fallback to single lookup)
+                    const candidateOrders = candidateMap
+                        ? (candidateMap.get(transaction.id) ?? [])
+                        : await this.repository.findCandidateOrders(
+                              input.merchantId,
+                              transaction,
+                              timeToleranceMs,
+                          );
 
                     // Pure deterministic decision
                     const decision = evaluateMatch(transaction, candidateOrders, {
