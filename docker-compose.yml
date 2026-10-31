@@ -21,6 +21,24 @@ services:
     restart: unless-stopped
 
   # ----------------------------------------------------------------------------
+  # Redis In-Memory Cache & Distributed Key-Value Store
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: flowops-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
   # Database Migration & Seed Init Service (One-shot)
   # ----------------------------------------------------------------------------
   db-init:
@@ -64,6 +82,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/reconresolve?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
       CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-*}
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
@@ -80,6 +99,8 @@ services:
       db-init:
         condition: service_completed_successfully
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -98,6 +119,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/reconresolve?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
       OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-20}
       OUTBOX_LEASE_DURATION_MS: ${OUTBOX_LEASE_DURATION_MS:-30000}
@@ -114,6 +136,8 @@ services:
       db-init:
         condition: service_completed_successfully
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -141,4 +165,5 @@ services:
 volumes:
   postgres_data:
     driver: local
-
+  redis_data:
+    driver: local
