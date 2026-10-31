@@ -165,9 +165,9 @@ export interface ExceptionsApiClient {
     reopen(merchantId: string, exceptionId: string, input: ReopenExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
     dismiss(merchantId: string, exceptionId: string, input: DismissExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
     investigate(merchantId: string, exceptionId: string, input: InvestigateExceptionInput, ctx: OperatorContext): Promise<ExceptionDetail>;
-    triggerAiInvestigation(merchantId: string, exceptionId: string, input?: TriggerInvestigationInput, signal?: AbortSignal): Promise<InvestigationRecord>;
-    getLatestAiInvestigation(merchantId: string, exceptionId: string, signal?: AbortSignal): Promise<InvestigationRecord | null>;
-    listAiInvestigations(merchantId: string, exceptionId: string, signal?: AbortSignal): Promise<InvestigationRecord[]>;
+    triggerAiInvestigation(merchantId: string, exceptionId: string, input?: TriggerInvestigationInput, signal?: AbortSignal, ctx?: OperatorContext): Promise<InvestigationRecord>;
+    getLatestAiInvestigation(merchantId: string, exceptionId: string, signal?: AbortSignal, ctx?: OperatorContext): Promise<InvestigationRecord | null>;
+    listAiInvestigations(merchantId: string, exceptionId: string, signal?: AbortSignal, ctx?: OperatorContext): Promise<InvestigationRecord[]>;
 }
 
 // ---------------------------------------------------------------------------

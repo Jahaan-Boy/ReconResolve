@@ -749,6 +749,8 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
         merchantId: string,
         exceptionId: string,
         input?: TriggerInvestigationInput,
+        _signal?: AbortSignal,
+        _ctx?: OperatorContext,
     ): Promise<InvestigationRecord> {
         await this.simulateDelay();
         const record = this.store.get(exceptionId);
@@ -884,6 +886,8 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
     async getLatestAiInvestigation(
         merchantId: string,
         exceptionId: string,
+        _signal?: AbortSignal,
+        _ctx?: OperatorContext,
     ): Promise<InvestigationRecord | null> {
         await this.simulateDelay();
         const key = `${merchantId}:${exceptionId}`;
@@ -895,6 +899,8 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
     async listAiInvestigations(
         merchantId: string,
         exceptionId: string,
+        _signal?: AbortSignal,
+        _ctx?: OperatorContext,
     ): Promise<InvestigationRecord[]> {
         await this.simulateDelay();
         const key = `${merchantId}:${exceptionId}`;

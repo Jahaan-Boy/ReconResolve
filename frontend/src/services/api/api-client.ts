@@ -141,24 +141,27 @@ class AdaptiveExceptionsApiClient implements ExceptionsApiClient {
         exceptionId: string,
         input?: TriggerInvestigationInput,
         signal?: AbortSignal,
+        ctx?: OperatorContext,
     ): Promise<InvestigationRecord> {
-        return this.getActiveClient().triggerAiInvestigation(merchantId, exceptionId, input, signal);
+        return this.getActiveClient().triggerAiInvestigation(merchantId, exceptionId, input, signal, ctx);
     }
 
     async getLatestAiInvestigation(
         merchantId: string,
         exceptionId: string,
         signal?: AbortSignal,
+        ctx?: OperatorContext,
     ): Promise<InvestigationRecord | null> {
-        return this.getActiveClient().getLatestAiInvestigation(merchantId, exceptionId, signal);
+        return this.getActiveClient().getLatestAiInvestigation(merchantId, exceptionId, signal, ctx);
     }
 
     async listAiInvestigations(
         merchantId: string,
         exceptionId: string,
         signal?: AbortSignal,
+        ctx?: OperatorContext,
     ): Promise<InvestigationRecord[]> {
-        return this.getActiveClient().listAiInvestigations(merchantId, exceptionId, signal);
+        return this.getActiveClient().listAiInvestigations(merchantId, exceptionId, signal, ctx);
     }
 }
 

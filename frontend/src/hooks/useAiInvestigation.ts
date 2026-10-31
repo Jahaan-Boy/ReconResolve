@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adaptiveApiClient } from '@/services/api/api-client';
-import { ApiClientError, type InvestigationRecord } from '@/services/api/types';
+import { ApiClientError, type InvestigationRecord, type OperatorContext } from '@/services/api/types';
 
 export type InvestigationPanelStatus =
     | 'idle'
@@ -15,6 +15,7 @@ export interface UseAiInvestigationOptions {
     exceptionId: string | null;
     exceptionVersion?: number;
     exceptionUpdatedAt?: string;
+    operatorContext?: OperatorContext;
 }
 
 export interface UseAiInvestigationResult {
@@ -31,6 +32,7 @@ export function useAiInvestigation({
     exceptionId,
     exceptionVersion,
     exceptionUpdatedAt,
+    operatorContext,
 }: UseAiInvestigationOptions): UseAiInvestigationResult {
     const [status, setStatus] = useState<InvestigationPanelStatus>('idle');
     const [investigation, setInvestigation] = useState<InvestigationRecord | null>(null);
@@ -69,7 +71,7 @@ export function useAiInvestigation({
         abortControllerRef.current = controller;
 
         adaptiveApiClient
-            .getLatestAiInvestigation(merchantId, exceptionId, controller.signal)
+            .getLatestAiInvestigation(merchantId, exceptionId, controller.signal, operatorContext)
             .then((existing) => {
                 if (currentReqId !== requestIdRef.current) return;
                 if (existing) {
@@ -113,7 +115,7 @@ export function useAiInvestigation({
                 abortControllerRef.current.abort();
             }
         };
-    }, [merchantId, exceptionId, exceptionVersion, exceptionUpdatedAt]);
+    }, [merchantId, exceptionId, exceptionVersion, exceptionUpdatedAt, operatorContext]);
 
     // Explicit user-triggered investigation
     const triggerInvestigation = useCallback(async () => {
@@ -139,6 +141,7 @@ export function useAiInvestigation({
                 exceptionId,
                 { idempotencyKey },
                 controller.signal,
+                operatorContext,
             );
 
             if (currentReqId !== requestIdRef.current) return;
@@ -176,7 +179,7 @@ export function useAiInvestigation({
             setError({ code, message, details });
             setStatus('error');
         }
-    }, [merchantId, exceptionId]);
+    }, [merchantId, exceptionId, operatorContext]);
 
     const clear = useCallback(() => {
         if (abortControllerRef.current) {
