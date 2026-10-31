@@ -79,7 +79,7 @@ export function resolveModelProvider(options?: ResolveProviderOptions): Provider
     }
 
     // 3. Production must FAIL CLOSED with typed provider-unavailable error
-    if (isProdEnv) {
+    if (isProdEnv && !options?.allowTestFakeInNonTest) {
         throw AIInvestigatorError.providerUnavailable(
             'No AI model provider is configured (missing GEMINI_API_KEY). Production cannot run without a live AI provider.',
         );

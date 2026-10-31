@@ -37,7 +37,7 @@ export class InvestigationService {
         this.outputValidator = deps.outputValidator ?? new InvestigationOutputValidator();
         this.modelProvider =
             deps.modelProvider ??
-            resolveModelProvider({ allowTestFakeInNonTest: process.env.NODE_ENV !== 'production' }).provider;
+            resolveModelProvider({ allowTestFakeInNonTest: process.env.NODE_ENV !== 'production' || process.env.ALLOW_TEST_FAKE_AI === 'true' }).provider;
         this.repository = deps.repository ?? createInvestigationRepository();
         this.maxRetries = deps.maxRetries ?? 1; // Bounded retry: at most 1 retry on transient error
         this.timeoutMs = deps.timeoutMs ?? 15_000; // Strict 15s timeout

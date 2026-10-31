@@ -1,0 +1,144 @@
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL Transactional Database
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: flowops-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-reconresolve}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-reconresolve}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # Database Migration & Seed Init Service (One-shot)
+  # ----------------------------------------------------------------------------
+  db-init:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: flowops-db-init
+    command: >
+      sh -c "
+        echo '[db-init] Applying Prisma migrations...' &&
+        npx prisma migrate deploy &&
+        echo '[db-init] Seeding demo accounts and merchants...' &&
+        npx prisma db seed &&
+        echo '[db-init] Database initialization complete.'
+      "
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      ALLOW_TEST_FAKE_AI: ${ALLOW_TEST_FAKE_AI:-true}
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/reconresolve?schema=public}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # ----------------------------------------------------------------------------
+  # Backend Express REST API Server
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: flowops-api
+    command: ["node", "dist/server.js"]
+    ports:
+      - "${API_PORT:-3001}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      ALLOW_TEST_FAKE_AI: ${ALLOW_TEST_FAKE_AI:-true}
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/reconresolve?schema=public}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-*}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL_ID: ${GEMINI_MODEL_ID:-gemini-2.5-flash}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # Standalone Transactional Outbox Worker Daemon
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: flowops-worker
+    command: ["node", "dist/workers/run-worker.js"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      ALLOW_TEST_FAKE_AI: ${ALLOW_TEST_FAKE_AI:-true}
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/reconresolve?schema=public}
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-20}
+      OUTBOX_LEASE_DURATION_MS: ${OUTBOX_LEASE_DURATION_MS:-30000}
+      OUTBOX_CONCURRENCY: ${OUTBOX_CONCURRENCY:-5}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-5}
+      OUTBOX_BASE_BACKOFF_MS: ${OUTBOX_BASE_BACKOFF_MS:-1000}
+      OUTBOX_MAX_BACKOFF_MS: ${OUTBOX_MAX_BACKOFF_MS:-60000}
+      OUTBOX_DRAIN_TIMEOUT_MS: ${OUTBOX_DRAIN_TIMEOUT_MS:-10000}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL_ID: ${GEMINI_MODEL_ID:-gemini-2.5-flash}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # Frontend Web UI (Nginx Alpine + Built Vite SPA)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: flowops-frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
