@@ -11,7 +11,6 @@ import {
     createInvestigationService,
     type InvestigationService,
 } from '../services/ai-investigator/investigation.service';
-
 import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 export interface InvestigationRouterDeps {
@@ -19,6 +18,42 @@ export interface InvestigationRouterDeps {
     authGuard?: RequestHandler;
     merchantGuard?: RequestHandler;
     authDeps?: AuthMiddlewareDeps;
+    rateLimiter?: (key: string) => boolean;
+}
+
+// In-memory rate limiter for expensive AI investigation requests
+interface InvestigationRateBucket {
+    count: number;
+    resetAt: number;
+}
+export const investigationRateLimitMap = new Map<string, InvestigationRateBucket>();
+const MAX_INVESTIGATION_ATTEMPTS = 10;
+const INVESTIGATION_RATE_WINDOW_MS = 60 * 1000; // 10 attempts per minute per merchant/actor
+const MAX_INVESTIGATION_MAP_SIZE = 5000;
+
+export function checkInvestigationRateLimit(key: string): boolean {
+    const now = Date.now();
+    if (investigationRateLimitMap.size > 100) {
+        for (const [k, b] of investigationRateLimitMap.entries()) {
+            if (b.resetAt < now) {
+                investigationRateLimitMap.delete(k);
+            }
+        }
+    }
+    const entry = investigationRateLimitMap.get(key);
+    if (!entry || entry.resetAt < now) {
+        if (investigationRateLimitMap.size >= MAX_INVESTIGATION_MAP_SIZE) {
+            const oldestKey = investigationRateLimitMap.keys().next().value;
+            if (oldestKey) investigationRateLimitMap.delete(oldestKey);
+        }
+        investigationRateLimitMap.set(key, { count: 1, resetAt: now + INVESTIGATION_RATE_WINDOW_MS });
+        return true;
+    }
+    if (entry.count >= MAX_INVESTIGATION_ATTEMPTS) {
+        return false;
+    }
+    entry.count += 1;
+    return true;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,6 +69,7 @@ export function createInvestigationRouter(deps: InvestigationRouterDeps = {}): R
     // Server-enforced authentication and merchant isolation guards
     const authGuard = deps.authGuard ?? authenticate(deps.authDeps);
     const merchantGuard = deps.merchantGuard ?? resolveMerchantContext(deps.authDeps);
+    const rateLimitCheck = deps.rateLimiter ?? checkInvestigationRateLimit;
 
     router.use(authGuard);
     router.use(merchantGuard);
@@ -86,8 +122,17 @@ export function createInvestigationRouter(deps: InvestigationRouterDeps = {}): R
                 const { merchantId, exceptionId } = req.params;
                 validateParams(merchantId, exceptionId);
 
-                const body = InvestigateBodySchema.parse(req.body || {});
                 const actorId = req.auth?.user.id || req.authenticatedUser?.id;
+                const rateLimitKey = `${merchantId}:${actorId || req.ip || 'anonymous'}`;
+                if (!rateLimitCheck(rateLimitKey)) {
+                    res.status(429).json({
+                        error: 'RATE_LIMIT_EXCEEDED',
+                        message: 'Too many investigation requests. Please wait before triggering another investigation.',
+                    });
+                    return;
+                }
+
+                const body = InvestigateBodySchema.parse(req.body || {});
                 const correlationId = (req.headers['x-correlation-id'] as string) || undefined;
 
                 const record = await service.investigate({

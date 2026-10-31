@@ -27,6 +27,7 @@ import {
     createOperationsRouter,
     type OperationsRouterDeps,
 } from './routes/operations';
+import { sanitizeErrorMessage } from './services/outbox/error-sanitizer';
 
 export interface AppDeps extends WebhookRouterDeps {
     exceptionRouterDeps?: ExceptionRouterDeps;
@@ -42,10 +43,33 @@ export interface AppDeps extends WebhookRouterDeps {
 export function buildApp(deps?: AppDeps): Application {
     const app = express();
 
-    // 1. Webhook router mounted BEFORE global express.json() to capture raw request bytes
+    // 1. Standard security response headers and CORS handling
+    app.use((req, res, next) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('X-XSS-Protection', '0');
+
+        const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN || '*';
+        const origin = req.headers.origin;
+        if (origin && (allowedOrigin === '*' || allowedOrigin === origin)) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Correlation-ID, Idempotency-Key');
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
+
+        if (req.method === 'OPTIONS') {
+            res.status(204).end();
+            return;
+        }
+
+        next();
+    });
+
+    // 2. Webhook router mounted BEFORE global express.json() to capture raw request bytes
     app.use('/webhooks/paypal', createPayPalWebhookRouter(deps));
 
-    // 2. Global JSON parser for ordinary application endpoints with explicit 1MB bounded limit
+    // 3. Global JSON parser for ordinary application endpoints with explicit 1MB bounded limit
     app.use(express.json({ limit: '1mb' }));
     app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
         if (err && (err.type === 'entity.too.large' || err.status === 413)) {
@@ -65,7 +89,7 @@ export function buildApp(deps?: AppDeps): Application {
         next(err);
     });
 
-    // 3. Application routes
+    // 4. Application routes
     app.use(healthRouter);
     app.use('/api/auth', createAuthRouter(deps?.authRouterDeps));
     app.use('/api/merchants/:merchantId/exceptions', createExceptionRouter(deps?.exceptionRouterDeps));
@@ -75,6 +99,23 @@ export function buildApp(deps?: AppDeps): Application {
     app.use('/api/merchants/:merchantId/runs', createReconciliationRunRouter(deps?.runRouterDeps));
     app.use('/api/merchants/:merchantId/dashboard', createDashboardRouter(deps?.dashboardRouterDeps));
     app.use('/api/merchants/:merchantId/operations', createOperationsRouter(deps?.operationsRouterDeps));
+
+    // 5. Unmatched route JSON 404 handler (prevents default HTML leakage)
+    app.use((_req, res) => {
+        res.status(404).json({
+            error: 'NOT_FOUND',
+            message: 'Endpoint not found',
+        });
+    });
+
+    // 6. Centralized fail-safe error handler (prevents stack traces & secrets leakage)
+    app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        console.error('[UnhandledAppError]:', sanitizeErrorMessage(err));
+        res.status(500).json({
+            error: 'INTERNAL_SERVER_ERROR',
+            message: 'An unexpected internal error occurred',
+        });
+    });
 
     return app;
 }
