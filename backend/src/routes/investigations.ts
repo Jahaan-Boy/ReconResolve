@@ -12,13 +12,15 @@ import {
     type InvestigationService,
 } from '../services/ai-investigator/investigation.service';
 import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
+import { getCacheService, type CacheService } from '../services/cache';
 
 export interface InvestigationRouterDeps {
     service?: InvestigationService;
     authGuard?: RequestHandler;
     merchantGuard?: RequestHandler;
     authDeps?: AuthMiddlewareDeps;
-    rateLimiter?: (key: string) => boolean;
+    rateLimiter?: (key: string) => boolean | Promise<boolean>;
+    cache?: CacheService;
 }
 
 // In-memory rate limiter for expensive AI investigation requests
@@ -56,6 +58,18 @@ export function checkInvestigationRateLimit(key: string): boolean {
     return true;
 }
 
+export async function checkDistributedInvestigationRateLimit(
+    key: string,
+    cache: CacheService = getCacheService(),
+): Promise<boolean> {
+    try {
+        const { count } = await cache.increment(`ai_investigation:${key}`, 60);
+        return count <= MAX_INVESTIGATION_ATTEMPTS;
+    } catch {
+        return checkInvestigationRateLimit(key);
+    }
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const InvestigateBodySchema = z.object({
@@ -69,7 +83,8 @@ export function createInvestigationRouter(deps: InvestigationRouterDeps = {}): R
     // Server-enforced authentication and merchant isolation guards
     const authGuard = deps.authGuard ?? authenticate(deps.authDeps);
     const merchantGuard = deps.merchantGuard ?? resolveMerchantContext(deps.authDeps);
-    const rateLimitCheck = deps.rateLimiter ?? checkInvestigationRateLimit;
+    const cache = deps.cache ?? getCacheService();
+    const rateLimitCheck = deps.rateLimiter ?? ((k: string) => checkDistributedInvestigationRateLimit(k, cache));
 
     router.use(authGuard);
     router.use(merchantGuard);
@@ -124,7 +139,7 @@ export function createInvestigationRouter(deps: InvestigationRouterDeps = {}): R
 
                 const actorId = req.auth?.user.id || req.authenticatedUser?.id;
                 const rateLimitKey = `${merchantId}:${actorId || req.ip || 'anonymous'}`;
-                if (!rateLimitCheck(rateLimitKey)) {
+                if (!(await Promise.resolve(rateLimitCheck(rateLimitKey)))) {
                     res.status(429).json({
                         error: 'RATE_LIMIT_EXCEEDED',
                         message: 'Too many investigation requests. Please wait before triggering another investigation.',

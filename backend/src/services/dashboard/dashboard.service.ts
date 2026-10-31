@@ -1,5 +1,6 @@
 import type { PrismaClient, ReconciliationRunStatus } from '../../generated/prisma';
 import { getDB } from '../../db/postgres';
+import { getCacheService, InMemoryCacheService, type CacheService } from '../cache';
 import type {
     DashboardLatestRunSummary,
     DashboardMetricsSummary,
@@ -49,13 +50,16 @@ export interface DashboardServiceDb {
 
 export interface DashboardServiceDeps {
     db: DashboardServiceDb;
+    cache?: CacheService;
 }
 
 export class DashboardService {
     private readonly db: DashboardServiceDb;
+    private readonly cache: CacheService;
 
     constructor(deps: DashboardServiceDeps) {
         this.db = deps.db;
+        this.cache = deps.cache ?? (process.env.NODE_ENV === 'test' ? new InMemoryCacheService() : getCacheService());
     }
 
     async getSummary(
@@ -89,7 +93,9 @@ export class DashboardService {
             }
         }
 
-        const dateCondition: { gte?: Date; lte?: Date } = {};
+        const cacheKey = `dashboard:${merchantId}:${filter.from?.toISOString() ?? 'all'}:${filter.to?.toISOString() ?? 'all'}`;
+        return this.cache.getOrSet(cacheKey, async () => {
+            const dateCondition: { gte?: Date; lte?: Date } = {};
         if (filter.from) dateCondition.gte = filter.from;
         if (filter.to) dateCondition.lte = filter.to;
         const hasDateFilter = Object.keys(dateCondition).length > 0;
@@ -241,16 +247,17 @@ export class DashboardService {
             };
         });
 
-        return {
-            range: {
-                from: filter.from ? filter.from.toISOString() : null,
-                to: filter.to ? filter.to.toISOString() : null,
-            },
-            generatedAt: new Date().toISOString(),
-            latestRun,
-            summary,
-            trend,
-        };
+            return {
+                range: {
+                    from: filter.from ? filter.from.toISOString() : null,
+                    to: filter.to ? filter.to.toISOString() : null,
+                },
+                generatedAt: new Date().toISOString(),
+                latestRun,
+                summary,
+                trend,
+            };
+        }, 30);
     }
 }
 
