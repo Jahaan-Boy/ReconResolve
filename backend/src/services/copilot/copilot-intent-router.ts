@@ -1,7 +1,31 @@
-import type { CopilotIntent } from './types';
+import type { CopilotIntent, CopilotTurnContext } from './types';
 
-export function routeQuestionIntent(question: string): CopilotIntent {
+export function routeQuestionIntent(
+    question: string,
+    recentTurns?: CopilotTurnContext[],
+): CopilotIntent {
     const q = question.toLowerCase().trim();
+
+    // 0. System Guardrails: neutralize dangerous commands, SQL injections, secrets requests, or financial execution
+    if (
+        q.includes('drop table') ||
+        q.includes('truncate') ||
+        q.includes('delete from') ||
+        q.includes('select * from') ||
+        q.includes('api_key') ||
+        q.includes('secret') ||
+        q.includes('password') ||
+        q.includes('credential') ||
+        q.includes('refund') ||
+        q.includes('capture') ||
+        q.includes('payout') ||
+        q.includes('move money') ||
+        q.includes('transfer funds') ||
+        q.includes('ignore previous instructions') ||
+        q.includes('system prompt')
+    ) {
+        return 'guardrail_blocked';
+    }
 
     // 1. Exception breakdown by type / value
     if (
@@ -9,6 +33,7 @@ export function routeQuestionIntent(question: string): CopilotIntent {
         q.includes('distribution') ||
         q.includes('types') ||
         q.includes('category') ||
+        q.includes('ex-') ||
         (q.includes('which exception') && (q.includes('account') || q.includes('type')))
     ) {
         return 'exception_breakdown';
@@ -70,6 +95,52 @@ export function routeQuestionIntent(question: string): CopilotIntent {
         q.includes('reconciliation status')
     ) {
         return 'general_reconciliation_summary';
+    }
+
+    // 8. Follow-up context resolution using bounded recent turns (at most 6 messages)
+    if (recentTurns && recentTurns.length > 0) {
+        // Find the most recent non-clarification intent from recent context
+        const priorTurn = [...recentTurns].reverse().find(
+            (t) => t.intent && t.intent !== 'ambiguous_clarification' && t.intent !== 'unsupported' && t.intent !== 'guardrail_blocked',
+        );
+
+        if (priorTurn?.intent) {
+            // Check for unambiguous follow-up references
+            if (
+                q.includes('compare that') ||
+                q.includes('compare with last') ||
+                q.includes('what about last week') ||
+                q.includes('how does that compare')
+            ) {
+                return 'run_comparison';
+            }
+            if (
+                q.includes('more details') ||
+                q.includes('tell me more about those') ||
+                q.includes('which ones') ||
+                q.includes('show those') ||
+                q.includes('details on that')
+            ) {
+                return priorTurn.intent;
+            }
+        }
+    }
+
+    // 9. Ambiguous short question detection
+    if (
+        !q.includes('ex-') && !q.includes('run-') && !q.includes('order-') &&
+        (q === 'why?' ||
+         q === 'why did that happen?' ||
+         q.includes('why did that happen') ||
+         q.includes('explain that') ||
+         q.includes('explain that one') ||
+         q.includes('tell me more') ||
+         q.includes('what about that') ||
+         q.includes('how about that') ||
+         q.startsWith('what about') ||
+         q.startsWith('how about'))
+    ) {
+        return 'ambiguous_clarification';
     }
 
     return 'unsupported';

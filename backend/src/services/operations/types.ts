@@ -45,9 +45,35 @@ export interface OperationsSummaryResult {
 }
 
 export interface ReplayOutboxEventResult {
-    readonly outcome: 'replayed';
+    readonly outcome: 'replayed' | 'rejected' | 'already_queued';
     readonly eventId: string;
-    readonly status: 'PENDING';
+    readonly status: string;
+    readonly reason?: string;
     readonly replayedAt: string;
     readonly replayedBy: string;
+}
+
+export interface TimelineStep {
+    readonly step:
+        | 'webhook_received'
+        | 'webhook_processed'
+        | 'outbox_dispatched'
+        | 'provider_transaction'
+        | 'reconciliation_run'
+        | 'exception_or_match';
+    readonly title: string;
+    readonly status: 'success' | 'failed' | 'pending' | 'missing' | 'not_applicable';
+    readonly timestamp: string | null;
+    readonly entityId: string | null;
+    readonly summary: string;
+    readonly details?: Record<string, any>;
+    readonly error?: string | null;
+}
+
+export interface EventTimelineResult {
+    readonly merchantId: string;
+    readonly rootEventId: string;
+    readonly targetEventId?: string;
+    readonly generatedAt: string;
+    readonly steps: TimelineStep[];
 }

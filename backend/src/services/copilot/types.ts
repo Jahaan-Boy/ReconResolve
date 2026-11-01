@@ -6,6 +6,8 @@ export type CopilotIntent =
     | 'duplicate_candidates'
     | 'missing_order_exceptions'
     | 'general_reconciliation_summary'
+    | 'ambiguous_clarification'
+    | 'guardrail_blocked'
     | 'unsupported';
 
 export interface CopilotEvidenceRef {
@@ -15,6 +17,12 @@ export interface CopilotEvidenceRef {
     readonly details?: string;
 }
 
+export interface CopilotTurnContext {
+    readonly role: 'user' | 'assistant';
+    readonly content: string;
+    readonly intent?: CopilotIntent;
+}
+
 export interface CopilotAskRequest {
     readonly question: string;
     readonly context?: {
@@ -22,6 +30,7 @@ export interface CopilotAskRequest {
         readonly exceptionId?: string;
         readonly window?: '24h' | '7d' | '30d' | 'all';
     };
+    readonly recentTurns?: CopilotTurnContext[];
 }
 
 export interface CopilotAskResult {
@@ -37,6 +46,7 @@ export interface CopilotAskResult {
     readonly isAiGenerated: boolean;
     readonly generatedAt: string;
     readonly queryWindow: string;
+    readonly storageMode?: 'durable_postgres' | 'tenant_session_store';
 }
 
 export interface CopilotCapabilitiesResult {
@@ -46,4 +56,41 @@ export interface CopilotCapabilitiesResult {
         readonly description: string;
         readonly exampleQuestions: string[];
     }>;
+}
+
+export interface CopilotSession {
+    readonly id: string;
+    readonly merchantId: string;
+    readonly createdByUserId: string;
+    readonly title: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+    readonly lastMessageAt: string;
+    readonly archivedAt: string | null;
+    readonly version: number;
+}
+
+export interface CopilotMessage {
+    readonly id: string;
+    readonly sessionId: string;
+    readonly merchantId: string;
+    readonly role: 'user' | 'assistant';
+    readonly content: string;
+    readonly answerPayload?: CopilotAskResult;
+    readonly createdAt: string;
+    readonly requestId?: string;
+}
+
+export interface CopilotSessionListResult {
+    readonly items: CopilotSession[];
+    readonly nextCursor: string | null;
+    readonly hasMore: boolean;
+    readonly storageMode: string;
+}
+
+export interface CopilotMessageListResult {
+    readonly items: CopilotMessage[];
+    readonly nextCursor: string | null;
+    readonly hasMore: boolean;
+    readonly storageMode: string;
 }

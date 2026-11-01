@@ -633,8 +633,42 @@ export interface WebhookEventRecord {
     processingStatus: 'RECEIVED' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 }
 
+export interface ReplayOutboxEventResult {
+    outcome: 'replayed' | 'rejected' | 'already_queued';
+    eventId: string;
+    status: string;
+    reason?: string;
+    replayedAt?: string;
+    replayedBy?: string;
+}
+
+export interface TimelineStep {
+    step:
+        | 'webhook_received'
+        | 'webhook_processed'
+        | 'outbox_dispatched'
+        | 'provider_transaction'
+        | 'reconciliation_run'
+        | 'exception_or_match';
+    title: string;
+    status: 'success' | 'failed' | 'pending' | 'missing' | 'not_applicable';
+    timestamp: string | null;
+    entityId: string | null;
+    summary: string;
+    details?: Record<string, any>;
+    error?: string | null;
+}
+
+export interface EventTimelineResult {
+    merchantId: string;
+    rootEventId: string;
+    generatedAt: string;
+    steps: TimelineStep[];
+}
+
 export interface OperationsApiClient {
     getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary>;
-    replayOutboxEvent(merchantId: string, eventId: string): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }>;
+    replayOutboxEvent(merchantId: string, eventId: string): Promise<ReplayOutboxEventResult>;
     getRecentWebhooks(merchantId: string, limit?: number, signal?: AbortSignal): Promise<{ items: WebhookEventRecord[] }>;
+    getEventTimeline(merchantId: string, eventId: string, signal?: AbortSignal): Promise<EventTimelineResult>;
 }

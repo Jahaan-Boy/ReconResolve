@@ -112,7 +112,7 @@ export class CopilotService {
         request: CopilotAskRequest,
     ): Promise<CopilotAskResult> {
         const question = request.question.trim();
-        const intent = routeQuestionIntent(question);
+        const intent = routeQuestionIntent(question, request.recentTurns);
         const window = request.context?.window || '30d';
         const now = new Date();
 
@@ -131,6 +131,10 @@ export class CopilotService {
                 return this.handleMissingOrders(merchantId, question, window, now);
             case 'general_reconciliation_summary':
                 return this.handleGeneralSummary(merchantId, question, window, now);
+            case 'ambiguous_clarification':
+                return this.handleAmbiguousClarification(question, now);
+            case 'guardrail_blocked':
+                return this.handleGuardrailBlocked(question, now);
             case 'unsupported':
             default:
                 return this.handleUnsupported(question, now);
@@ -649,7 +653,67 @@ export class CopilotService {
         };
     }
 
-    // 8. Unsupported intent fallback
+    // 8. Ambiguous question clarification
+    private handleAmbiguousClarification(question: string, now: Date): CopilotAskResult {
+        return {
+            question,
+            intent: 'ambiguous_clarification',
+            answer: `Your follow-up question is ambiguous. Rather than guessing, please specify which aspect of the reconciliation portfolio you would like to analyze:
+1. "What are the largest open discrepancies?" (ranked by currency exposure)
+2. "Compare the last two reconciliation runs" (match rate variation and break counts)
+3. "Show duplicate-payment candidates" or "Which exceptions have missing merchant orders?"`,
+            summary: 'Clarification needed: follow-up reference is ambiguous.',
+            observedFacts: [
+                `Received question: "${question}"`,
+                'Follow-up reference did not contain unambiguous filters, run identifiers, or exception categories.',
+            ],
+            interpretations: [
+                'Context requires operator clarification to execute an authoritative database query.',
+            ],
+            unknowns: [
+                'Target exception category, reconciliation run ID, or specific currency window.',
+            ],
+            evidenceRefs: [],
+            suggestedActions: [
+                'Ask: "What are the largest unresolved discrepancies?"',
+                'Ask: "Compare the last two reconciliation runs."',
+                'Ask: "Show exceptions with missing merchant orders."',
+            ],
+            isAiGenerated: false,
+            generatedAt: now.toISOString(),
+            queryWindow: 'all',
+            storageMode: 'tenant_session_store',
+        };
+    }
+
+    // 9. Guardrail Blocked (Security / Read-Only / Anti-Hallucination)
+    private handleGuardrailBlocked(question: string, now: Date): CopilotAskResult {
+        return {
+            question,
+            intent: 'guardrail_blocked',
+            answer: `Action blocked by system safety controls: FlowOps Copilot is an advisory, read-only intelligence tool. It strictly prohibits executing destructive operations, arbitrary SQL queries, credentials retrieval, or automated money movement (refunds/captures/payouts).`,
+            summary: 'Operation blocked: Copilot is strictly read-only and cannot execute monetary or destructive actions.',
+            observedFacts: [
+                'Request triggered safety policy restricting credential disclosure, database mutations, or funds transfers.',
+            ],
+            interpretations: [
+                'Financial corrections must be performed through verified operational channels by authorized administrators.',
+            ],
+            unknowns: [],
+            evidenceRefs: [],
+            suggestedActions: [
+                'Review discrepancy records in the Exceptions Workbench.',
+                'Use authorized settlement controls for funds movement.',
+                'Query read-only portfolio analysis or run statistics.',
+            ],
+            isAiGenerated: false,
+            generatedAt: now.toISOString(),
+            queryWindow: 'all',
+            storageMode: 'tenant_session_store',
+        };
+    }
+
+    // 10. Unsupported intent fallback
     private handleUnsupported(question: string, now: Date): CopilotAskResult {
         return {
             question,
@@ -673,6 +737,7 @@ export class CopilotService {
             isAiGenerated: false,
             generatedAt: now.toISOString(),
             queryWindow: 'all',
+            storageMode: 'tenant_session_store',
         };
     }
 }

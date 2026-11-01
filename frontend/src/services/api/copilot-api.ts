@@ -8,6 +8,8 @@ export type CopilotIntent =
     | 'duplicate_candidates'
     | 'missing_order_exceptions'
     | 'general_reconciliation_summary'
+    | 'ambiguous_clarification'
+    | 'guardrail_blocked'
     | 'unsupported';
 
 export interface CopilotEvidenceRef {
@@ -24,6 +26,11 @@ export interface CopilotAskRequest {
         exceptionId?: string;
         window?: '24h' | '7d' | '30d' | 'all';
     };
+    recentTurns?: Array<{
+        role: 'user' | 'assistant';
+        content: string;
+        intent?: CopilotIntent;
+    }>;
 }
 
 export interface CopilotAskResult {
@@ -39,6 +46,7 @@ export interface CopilotAskResult {
     isAiGenerated: boolean;
     generatedAt: string;
     queryWindow: string;
+    storageMode?: string;
 }
 
 export interface CopilotCapabilitiesResult {
@@ -50,6 +58,49 @@ export interface CopilotCapabilitiesResult {
     }>;
 }
 
+export interface CopilotSession {
+    id: string;
+    merchantId: string;
+    createdByUserId: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    lastMessageAt: string;
+    archivedAt: string | null;
+    version: number;
+}
+
+export interface CopilotMessage {
+    id: string;
+    sessionId: string;
+    merchantId: string;
+    role: 'user' | 'assistant';
+    content: string;
+    answerPayload?: CopilotAskResult;
+    createdAt: string;
+    requestId?: string;
+}
+
+export interface CopilotSessionListResult {
+    items: CopilotSession[];
+    nextCursor: string | null;
+    hasMore: boolean;
+    storageMode: string;
+}
+
+export interface CopilotMessageListResult {
+    items: CopilotMessage[];
+    nextCursor: string | null;
+    hasMore: boolean;
+    storageMode: string;
+}
+
+export interface PostSessionMessageResponse {
+    userMessage: CopilotMessage;
+    assistantMessage: CopilotMessage;
+    result: CopilotAskResult;
+}
+
 export interface CopilotApiClient {
     getCapabilities(merchantId: string, signal?: AbortSignal): Promise<CopilotCapabilitiesResult>;
     askQuestion(
@@ -57,6 +108,36 @@ export interface CopilotApiClient {
         request: CopilotAskRequest,
         signal?: AbortSignal,
     ): Promise<CopilotAskResult>;
+    listSessions(
+        merchantId: string,
+        limit?: number,
+        cursor?: string,
+        signal?: AbortSignal,
+    ): Promise<CopilotSessionListResult>;
+    createSession(
+        merchantId: string,
+        title?: string,
+        signal?: AbortSignal,
+    ): Promise<CopilotSession>;
+    listMessages(
+        merchantId: string,
+        sessionId: string,
+        limit?: number,
+        cursor?: string,
+        signal?: AbortSignal,
+    ): Promise<CopilotMessageListResult>;
+    postSessionMessage(
+        merchantId: string,
+        sessionId: string,
+        request: CopilotAskRequest,
+        signal?: AbortSignal,
+    ): Promise<PostSessionMessageResponse>;
+    updateSession(
+        merchantId: string,
+        sessionId: string,
+        updates: { title?: string; archivedAt?: string | null },
+        signal?: AbortSignal,
+    ): Promise<CopilotSession>;
 }
 
 export class HttpCopilotApiClient implements CopilotApiClient {
@@ -64,6 +145,24 @@ export class HttpCopilotApiClient implements CopilotApiClient {
 
     constructor(baseUrl = '') {
         this.baseUrl = baseUrl;
+    }
+
+    private async handleResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+        if (!res.ok) {
+            let errorBody: Record<string, unknown> = {};
+            try {
+                errorBody = (await res.json()) as Record<string, unknown>;
+            } catch {
+                // non-json
+            }
+            throw new ApiClientError(
+                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'COPILOT_ERROR',
+                typeof errorBody['message'] === 'string' ? errorBody['message'] : fallbackMessage,
+                res.status,
+                errorBody['details'],
+            );
+        }
+        return (await res.json()) as T;
     }
 
     async getCapabilities(merchantId: string, signal?: AbortSignal): Promise<CopilotCapabilitiesResult> {
@@ -75,23 +174,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                 signal,
             },
         );
-
-        if (!response.ok) {
-            let errorBody: Record<string, unknown> = {};
-            try {
-                errorBody = (await response.json()) as Record<string, unknown>;
-            } catch {
-                // non-json
-            }
-            throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'COPILOT_ERROR',
-                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch copilot capabilities',
-                response.status,
-                errorBody['details'],
-            );
-        }
-
-        return await response.json();
+        return this.handleResponse(response, 'Failed to fetch copilot capabilities');
     }
 
     async askQuestion(
@@ -108,108 +191,101 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                 signal,
             },
         );
-
-        if (!response.ok) {
-            let errorBody: Record<string, unknown> = {};
-            try {
-                errorBody = (await response.json()) as Record<string, unknown>;
-            } catch {
-                // non-json
-            }
-            throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'COPILOT_ERROR',
-                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to answer question',
-                response.status,
-                errorBody['details'],
-            );
-        }
-
-        return await response.json();
-    }
-}
-
-export class MockCopilotApiClient implements CopilotApiClient {
-    async getCapabilities(_merchantId: string): Promise<CopilotCapabilitiesResult> {
-        return {
-            supportedIntents: [
-                {
-                    intent: 'largest_unresolved_exceptions',
-                    label: 'Largest Discrepancies',
-                    description: 'Identifies the highest-value unresolved reconciliation exceptions ranked by exposure.',
-                    exampleQuestions: [
-                        'What are the three largest unresolved discrepancies?',
-                        'Show me the highest value open exceptions.',
-                    ],
-                },
-                {
-                    intent: 'exception_breakdown',
-                    label: 'Exception Breakdown',
-                    description: 'Analyzes the distribution and financial exposure across all exception categories.',
-                    exampleQuestions: [
-                        'Which exception types account for the most unresolved value?',
-                        'Show me a breakdown of all open exceptions.',
-                    ],
-                },
-                {
-                    intent: 'run_comparison',
-                    label: 'Run Comparison',
-                    description: 'Compares the last two runs to analyze match rate variations and new discrepancies.',
-                    exampleQuestions: [
-                        'Compare the last two reconciliation runs.',
-                        'Why did our match rate fall in the most recent run?',
-                    ],
-                },
-                {
-                    intent: 'duplicate_candidates',
-                    label: 'Duplicate Candidates',
-                    description: 'Detects provider transactions with identical order IDs or recurring amount signatures.',
-                    exampleQuestions: [
-                        'Show duplicate-payment candidates from the last seven days.',
-                    ],
-                },
-                {
-                    intent: 'missing_order_exceptions',
-                    label: 'Missing Orders',
-                    description: 'Highlights captured PayPal funds that lack corresponding internal order counterparts.',
-                    exampleQuestions: [
-                        'Which exceptions have missing merchant orders?',
-                    ],
-                },
-            ],
-        };
+        return this.handleResponse(response, 'Failed to answer question');
     }
 
-    async askQuestion(
-        _merchantId: string,
+    async listSessions(
+        merchantId: string,
+        limit = 20,
+        cursor?: string,
+        signal?: AbortSignal,
+    ): Promise<CopilotSessionListResult> {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (cursor) params.set('cursor', cursor);
+
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions?${params.toString()}`,
+            {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+            },
+        );
+        return this.handleResponse(response, 'Failed to list copilot sessions');
+    }
+
+    async createSession(
+        merchantId: string,
+        title?: string,
+        signal?: AbortSignal,
+    ): Promise<CopilotSession> {
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(title ? { title } : {}),
+                signal,
+            },
+        );
+        return this.handleResponse(response, 'Failed to create copilot session');
+    }
+
+    async listMessages(
+        merchantId: string,
+        sessionId: string,
+        limit = 50,
+        cursor?: string,
+        signal?: AbortSignal,
+    ): Promise<CopilotMessageListResult> {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (cursor) params.set('cursor', cursor);
+
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions/${encodeURIComponent(sessionId)}/messages?${params.toString()}`,
+            {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+            },
+        );
+        return this.handleResponse(response, 'Failed to list session messages');
+    }
+
+    async postSessionMessage(
+        merchantId: string,
+        sessionId: string,
         request: CopilotAskRequest,
-    ): Promise<CopilotAskResult> {
-        return {
-            question: request.question,
-            intent: 'largest_unresolved_exceptions',
-            answer: 'The three largest unresolved discrepancies account for the bulk of pending financial exposure in your queue.',
-            summary: 'Identified top unresolved exceptions by financial exposure.',
-            observedFacts: [
-                '#1: Exception ex-mock-001 (MISSING_MERCHANT_COUNTERPART) with exposure of USD 1,200.00 [Status: OPEN]',
-                '#2: Exception ex-mock-004 (AMBIGUOUS_MATCH) with exposure of USD 500.00 [Status: OPEN]',
-                '#3: Exception ex-mock-003 (AMOUNT_MISMATCH) with exposure of USD 495.00 [Status: OPEN]',
-            ],
-            interpretations: [
-                'Unresolved captured payments with missing orders carry high operational risk of customer fulfillment delay or chargebacks.',
-            ],
-            unknowns: [
-                'Root cause of order creation delay unknown until merchant ERP audit logs are inspected.',
-            ],
-            evidenceRefs: [
-                { id: 'ex-mock-001', type: 'exception', label: 'Exception ex-mock-001 (USD 1,200.00)', details: 'Captured without order' },
-                { id: 'ex-mock-004', type: 'exception', label: 'Exception ex-mock-004 (USD 500.00)', details: 'Ambiguous counterpart' },
-            ],
-            suggestedActions: [
-                'Open each exception in the Exceptions Queue to inspect provider transaction audit events.',
-            ],
-            isAiGenerated: false,
-            generatedAt: new Date().toISOString(),
-            queryWindow: '30d',
-        };
+        signal?: AbortSignal,
+    ): Promise<PostSessionMessageResponse> {
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions/${encodeURIComponent(sessionId)}/messages`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request),
+                signal,
+            },
+        );
+        return this.handleResponse(response, 'Failed to send message');
+    }
+
+    async updateSession(
+        merchantId: string,
+        sessionId: string,
+        updates: { title?: string; archivedAt?: string | null },
+        signal?: AbortSignal,
+    ): Promise<CopilotSession> {
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions/${encodeURIComponent(sessionId)}`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+                signal,
+            },
+        );
+        return this.handleResponse(response, 'Failed to update session');
     }
 }
 

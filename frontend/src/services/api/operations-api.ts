@@ -1,5 +1,11 @@
 import { ApiClientError } from './types';
-import type { OperationsApiClient, OperationsSummary, WebhookEventRecord } from './types';
+import type {
+    EventTimelineResult,
+    OperationsApiClient,
+    OperationsSummary,
+    ReplayOutboxEventResult,
+    WebhookEventRecord,
+} from './types';
 
 export class HttpOperationsApiClient implements OperationsApiClient {
     private readonly baseUrl: string;
@@ -9,7 +15,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     }
 
     async getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary> {
-        const response = await fetch(`${this.baseUrl}/api/merchants/${merchantId}/operations/summary`, {
+        const response = await fetch(`${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/summary`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
             signal,
@@ -36,9 +42,9 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     async replayOutboxEvent(
         merchantId: string,
         eventId: string,
-    ): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }> {
+    ): Promise<ReplayOutboxEventResult> {
         const response = await fetch(
-            `${this.baseUrl}/api/merchants/${merchantId}/operations/outbox/${eventId}/replay`,
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/outbox/${encodeURIComponent(eventId)}/replay`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -69,7 +75,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
         signal?: AbortSignal,
     ): Promise<{ items: WebhookEventRecord[] }> {
         const response = await fetch(
-            `${this.baseUrl}/api/merchants/${merchantId}/operations/webhooks?limit=${limit}`,
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/webhooks?limit=${limit}`,
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
@@ -87,6 +93,38 @@ export class HttpOperationsApiClient implements OperationsApiClient {
             throw new ApiClientError(
                 typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
                 typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch webhooks',
+                response.status,
+                errorBody['details'],
+            );
+        }
+
+        return await response.json();
+    }
+
+    async getEventTimeline(
+        merchantId: string,
+        eventId: string,
+        signal?: AbortSignal,
+    ): Promise<EventTimelineResult> {
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/events/${encodeURIComponent(eventId)}/timeline`,
+            {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+            },
+        );
+
+        if (!response.ok) {
+            let errorBody: Record<string, unknown> = {};
+            try {
+                errorBody = (await response.json()) as Record<string, unknown>;
+            } catch {
+                // non-json
+            }
+            throw new ApiClientError(
+                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
+                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch event timeline',
                 response.status,
                 errorBody['details'],
             );
@@ -127,11 +165,13 @@ export class MockOperationsApiClient implements OperationsApiClient {
     async replayOutboxEvent(
         _merchantId: string,
         eventId: string,
-    ): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }> {
+    ): Promise<ReplayOutboxEventResult> {
         return {
             outcome: 'replayed',
             eventId,
             status: 'PENDING',
+            replayedAt: new Date().toISOString(),
+            replayedBy: 'mock-operator',
         };
     }
 
@@ -152,19 +192,31 @@ export class MockOperationsApiClient implements OperationsApiClient {
                     receivedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
                     processingStatus: 'PROCESSED',
                 },
+            ],
+        };
+    }
+
+    async getEventTimeline(merchantId: string, eventId: string): Promise<EventTimelineResult> {
+        return {
+            merchantId,
+            rootEventId: eventId,
+            generatedAt: new Date().toISOString(),
+            steps: [
                 {
-                    id: 'mock-wh-2',
-                    merchantId: 'mock-merchant-001',
-                    provider: 'PAYPAL',
-                    providerConnectionId: 'mock-conn-001',
-                    providerEventId: 'WH-89X-002',
-                    eventType: 'CHECKOUT.ORDER.APPROVED',
-                    resourceType: 'order',
-                    transmissionId: 'trans-mock-002',
-                    transmissionTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-                    verifiedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-                    receivedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-                    processingStatus: 'PROCESSED',
+                    step: 'webhook_received',
+                    title: 'Webhook Received & Verified',
+                    status: 'success',
+                    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+                    entityId: 'mock-wh-1',
+                    summary: 'PayPal webhook verified successfully.',
+                },
+                {
+                    step: 'outbox_dispatched',
+                    title: 'Transactional Outbox Dispatch',
+                    status: 'success',
+                    timestamp: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
+                    entityId: eventId,
+                    summary: 'Outbox event dispatched cleanly.',
                 },
             ],
         };
