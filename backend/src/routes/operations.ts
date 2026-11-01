@@ -105,5 +105,23 @@ export function createOperationsRouter(deps: OperationsRouterDeps = {}): Router 
         },
     );
 
+    // 3. GET /api/merchants/:merchantId/operations/webhooks
+    // Lists recent sanitized webhook deliveries for this merchant
+    router.get(
+        '/webhooks',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId } = req.params;
+                const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 25;
+                const service = getService();
+                const webhooks = await service.getRecentWebhooks(merchantId, limit);
+                res.status(200).json({ items: webhooks });
+            } catch (err) {
+                handleRouteError(res, err);
+            }
+        },
+    );
+
     return router;
 }

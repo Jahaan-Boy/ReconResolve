@@ -257,12 +257,12 @@ export function AIInvestigationPanel({
                 {investigation && (status === 'success' || status === 'stale') && (
                     <div className="space-y-5">
                         {/* Summary Callout */}
-                        <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-800 space-y-2">
-                            <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold uppercase tracking-wider">
+                        <div className="p-4 rounded-xl bg-fin-brand/5 text-slate-900 border border-fin-brand/20 space-y-2 shadow-2xs">
+                            <div className="flex items-center gap-2 text-fin-brand text-xs font-bold uppercase tracking-wider">
                                 <BrainCircuit className="size-4" />
                                 <span>Investigator Summary</span>
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-sans">
+                            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans">
                                 {investigation.result.summary}
                             </p>
                         </div>

@@ -143,7 +143,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
                             Select Test Identity
                         </span>
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-fin-brand">
-                            <Sparkles className="size-3" /> Day 9 Multi-Tenant Matrix
+                            <Sparkles className="size-3" />
                         </span>
                     </div>
 
@@ -155,11 +155,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
                                     key={acc.email}
                                     type="button"
                                     onClick={() => handleSelectDemo(acc)}
-                                    className={`relative flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
-                                        isSelected
+                                    className={`relative flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${isSelected
                                             ? 'border-fin-brand bg-fin-brand/5 shadow-2xs ring-1 ring-fin-brand/40'
                                             : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex w-full items-center justify-between">
                                         <div className="flex items-center gap-1.5">

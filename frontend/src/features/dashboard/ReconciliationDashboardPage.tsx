@@ -184,7 +184,7 @@ export function ReconciliationDashboardPage({
     };
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto bg-slate-950 text-slate-100 font-sans">
+        <div className="flex flex-col h-full min-h-0 overflow-y-auto bg-slate-50/70 text-slate-900 font-sans">
             {/* Top Operational Header */}
             <DashboardHeader
                 merchantName={merchantName}
@@ -199,26 +199,26 @@ export function ReconciliationDashboardPage({
             />
 
             {/* Dashboard Content Container */}
-            <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6">
+            <main className="flex-1 p-4 sm:p-6 pb-16 max-w-7xl w-full mx-auto space-y-6">
                 {/* Critical Error Banner (with non-destructive Retry) */}
                 {error && !summaryData && (
                     <div
-                        className="flex items-center justify-between rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-rose-300"
+                        className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-800 shadow-2xs"
                         role="alert"
                     >
                         <div className="flex items-center gap-3">
-                            <AlertCircle className="size-5 shrink-0 text-rose-400" />
+                            <AlertCircle className="size-5 shrink-0 text-rose-600" />
                             <div>
-                                <h3 className="text-sm font-semibold text-rose-200">
+                                <h3 className="text-sm font-semibold text-rose-900">
                                     Unable to load reconciliation metrics
                                 </h3>
-                                <p className="text-xs text-rose-400 mt-0.5">{error}</p>
+                                <p className="text-xs text-rose-700 mt-0.5">{error}</p>
                             </div>
                         </div>
                         <button
                             type="button"
                             onClick={() => loadDashboardData(merchantId, selectedPreset, false)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/30 transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 shadow-2xs transition-colors"
                         >
                             <RefreshCw className="size-3.5" />
                             <span>Retry</span>

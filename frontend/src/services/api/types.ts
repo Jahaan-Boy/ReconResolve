@@ -170,9 +170,6 @@ export interface ExceptionsApiClient {
     listAiInvestigations(merchantId: string, exceptionId: string, signal?: AbortSignal, ctx?: OperatorContext): Promise<InvestigationRecord[]>;
 }
 
-// ---------------------------------------------------------------------------
-// AI Investigator Contracts (Day 15/16)
-// ---------------------------------------------------------------------------
 
 export type InvestigationStatus = 'SUCCESS' | 'INSUFFICIENT_EVIDENCE' | 'FAILED';
 export type ConfidenceLevel = 'low' | 'medium' | 'high';
@@ -242,6 +239,7 @@ export interface ProviderConnectionSummary {
     provider: ProviderCode;
     connectionKey: string;
     providerAccountId: string | null;
+    webhookId?: string | null;
     status: ProviderConnectionStatus;
     createdAt: string;
     updatedAt: string;
@@ -404,9 +402,6 @@ export interface BatchIngestResult {
     results: BatchItemResult[];
 }
 
-// ---------------------------------------------------------------------------
-// Reconciliation Run & Match Types (Day 12)
-// ---------------------------------------------------------------------------
 
 export type ReconciliationRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
@@ -516,11 +511,6 @@ export interface ListMatchesResult {
     pagination: PaginationMetadata;
 }
 
-
-// ---------------------------------------------------------------------------
-// Dashboard Overview Types (Day 13)
-// ---------------------------------------------------------------------------
-
 export interface DashboardDateRangeFilter {
     from?: string;
     to?: string;
@@ -628,7 +618,23 @@ export interface OperationsSummary {
     deadLetterQueue: DeadLetterRecord[];
 }
 
+export interface WebhookEventRecord {
+    id: string;
+    merchantId: string;
+    provider: string;
+    providerConnectionId: string;
+    providerEventId: string;
+    eventType: string;
+    resourceType: string | null;
+    transmissionId: string | null;
+    transmissionTime: string | null;
+    verifiedAt: string;
+    receivedAt: string;
+    processingStatus: 'RECEIVED' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
+}
+
 export interface OperationsApiClient {
     getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary>;
     replayOutboxEvent(merchantId: string, eventId: string): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }>;
+    getRecentWebhooks(merchantId: string, limit?: number, signal?: AbortSignal): Promise<{ items: WebhookEventRecord[] }>;
 }

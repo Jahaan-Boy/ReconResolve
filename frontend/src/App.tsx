@@ -22,10 +22,10 @@ function getInitialView(): AppView {
 
 function PageFallback() {
     return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs font-mono text-slate-400">Loading FlowOps...</span>
+                <div className="w-8 h-8 border-2 border-fin-brand border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-mono text-slate-500">Loading FlowOps...</span>
             </div>
         </div>
     );
