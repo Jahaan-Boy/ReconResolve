@@ -27,6 +27,14 @@ import {
     createOperationsRouter,
     type OperationsRouterDeps,
 } from './routes/operations';
+import {
+    createIntelligenceRouter,
+    type IntelligenceRouterDeps,
+} from './routes/intelligence';
+import {
+    createCopilotRouter,
+    type CopilotRouterDeps,
+} from './routes/copilot';
 import { sanitizeErrorMessage } from './services/outbox/error-sanitizer';
 
 export interface AppDeps extends WebhookRouterDeps {
@@ -38,6 +46,8 @@ export interface AppDeps extends WebhookRouterDeps {
     runRouterDeps?: ReconciliationRunRouterDeps;
     dashboardRouterDeps?: DashboardRouterDeps;
     operationsRouterDeps?: OperationsRouterDeps;
+    intelligenceRouterDeps?: IntelligenceRouterDeps;
+    copilotRouterDeps?: CopilotRouterDeps;
 }
 
 export function buildApp(deps?: AppDeps): Application {
@@ -99,6 +109,8 @@ export function buildApp(deps?: AppDeps): Application {
     app.use('/api/merchants/:merchantId/runs', createReconciliationRunRouter(deps?.runRouterDeps));
     app.use('/api/merchants/:merchantId/dashboard', createDashboardRouter(deps?.dashboardRouterDeps));
     app.use('/api/merchants/:merchantId/operations', createOperationsRouter(deps?.operationsRouterDeps));
+    app.use('/api/merchants/:merchantId/intelligence', createIntelligenceRouter(deps?.intelligenceRouterDeps));
+    app.use('/api/merchants/:merchantId/copilot', createCopilotRouter(deps?.copilotRouterDeps));
 
     // 5. Unmatched route JSON 404 handler (prevents default HTML leakage)
     app.use((_req, res) => {

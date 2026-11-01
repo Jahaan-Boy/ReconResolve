@@ -12,6 +12,9 @@ import { ExceptionActionDialog } from './ExceptionActionDialog';
 import { OrderIngestionDialog } from './OrderIngestionDialog';
 import { ReconciliationDialog } from './ReconciliationDialog';
 import { ReconciliationDashboardPage } from '@/features/dashboard/ReconciliationDashboardPage';
+import { PortfolioIntelligencePage } from '@/features/intelligence/PortfolioIntelligencePage';
+import { ReconciliationCopilotPage } from '@/features/copilot/ReconciliationCopilotPage';
+import { IntegrationsOperationsPage } from '@/features/operations/IntegrationsOperationsPage';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { CopilotDrawer } from './CopilotDrawer';
 import { OperationsTimelineModal } from './OperationsTimelineModal';
@@ -32,6 +35,7 @@ import {
     type ExceptionDetail,
     type ExceptionStatus,
     type ExceptionSummary,
+    type ExceptionType,
     type ListExceptionsFilter,
     type OperatorContext,
     type PaginationMetadata,
@@ -610,7 +614,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
             />
 
             {/* Workbench Body */}
-            <main className="flex-1 overflow-hidden">
+            <main className="flex-1 min-h-0 h-full overflow-hidden flex flex-col">
                 {consoleView === 'dashboard' ? (
                     <ReconciliationDashboardPage
                         merchantId={merchantId}
@@ -638,6 +642,42 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                             setConsoleView('workbench');
                         }}
                     />
+                ) : consoleView === 'intelligence' ? (
+                    <PortfolioIntelligencePage
+                        merchantId={merchantId}
+                        onNavigateToException={(exceptionId) => {
+                            if (exceptionId !== selectedId) {
+                                setDetail(null);
+                                setDetailError(null);
+                            }
+                            setSelectedId(exceptionId);
+                            setConsoleView('workbench');
+                            setShowMobileDetail(true);
+                        }}
+                        onFilterQueueByType={(filterType) => {
+                            setFilters((prev) => ({ ...prev, type: filterType as ExceptionType }));
+                            setConsoleView('workbench');
+                        }}
+                    />
+                ) : consoleView === 'copilot' ? (
+                    <ReconciliationCopilotPage
+                        merchantId={merchantId}
+                        onNavigateToException={(exceptionId) => {
+                            if (exceptionId !== selectedId) {
+                                setDetail(null);
+                                setDetailError(null);
+                            }
+                            setSelectedId(exceptionId);
+                            setConsoleView('workbench');
+                            setShowMobileDetail(true);
+                        }}
+                        onNavigateToRun={(runId) => {
+                            setSelectedReconRunId(runId);
+                            setIsReconModalOpen(true);
+                        }}
+                    />
+                ) : consoleView === 'operations' ? (
+                    <IntegrationsOperationsPage merchantId={merchantId} />
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-12 h-full">
                     {/* Left Pane: Queue & Filters (40% width / 5 cols) */}
@@ -789,27 +829,27 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 {toasts.map((toast) => (
                     <div
                         key={toast.id}
-                        className={`pointer-events-auto flex items-center justify-between gap-3 p-3.5 rounded-xl border shadow-lg text-xs animate-in slide-in-from-bottom-2 duration-200 ${
+                        className={`pointer-events-auto flex items-center justify-between gap-3 p-3.5 rounded-xl border shadow-xl text-xs animate-in slide-in-from-bottom-2 duration-200 bg-white ${
                             toast.type === 'success'
-                                ? 'bg-emerald-900 text-white border-emerald-700'
+                                ? 'text-slate-900 border-emerald-200'
                                 : toast.type === 'error'
-                                ? 'bg-rose-900 text-white border-rose-700'
+                                ? 'text-slate-900 border-rose-200'
                                 : toast.type === 'warning'
-                                ? 'bg-amber-900 text-white border-amber-700'
-                                : 'bg-slate-900 text-white border-slate-700'
+                                ? 'text-slate-900 border-amber-200'
+                                : 'text-slate-900 border-slate-200'
                         }`}
                     >
                         <div className="flex items-center gap-2">
-                            {toast.type === 'success' && <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />}
-                            {toast.type === 'error' && <AlertTriangle className="size-4 text-rose-400 shrink-0" />}
-                            {toast.type === 'warning' && <AlertTriangle className="size-4 text-amber-400 shrink-0" />}
-                            {toast.type === 'info' && <RefreshCw className="size-4 text-blue-400 shrink-0" />}
-                            <span className="font-medium">{toast.message}</span>
+                            {toast.type === 'success' && <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />}
+                            {toast.type === 'error' && <AlertTriangle className="size-4 text-rose-600 shrink-0" />}
+                            {toast.type === 'warning' && <AlertTriangle className="size-4 text-amber-600 shrink-0" />}
+                            {toast.type === 'info' && <RefreshCw className="size-4 text-fin-brand shrink-0" />}
+                            <span className="font-semibold">{toast.message}</span>
                         </div>
                         <button
                             type="button"
                             onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-                            className="text-white/60 hover:text-white"
+                            className="text-slate-400 hover:text-slate-700 transition p-0.5 rounded"
                         >
                             <X className="size-3.5" />
                         </button>

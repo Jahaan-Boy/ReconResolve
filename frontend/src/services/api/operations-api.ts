@@ -1,12 +1,11 @@
 import { ApiClientError } from './types';
 import type {
+    EventTimelineResult,
     OperationsApiClient,
     OperationsSummary,
-    OperationsTimelineResponse,
-    OperationsTimelineStage,
+    ReplayOutboxEventResult,
+    WebhookEventRecord,
 } from './types';
-
-export type { OperationsTimelineResponse, OperationsTimelineStage };
 
 export class HttpOperationsApiClient implements OperationsApiClient {
     private readonly baseUrl: string;
@@ -16,7 +15,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     }
 
     async getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary> {
-        const response = await fetch(`${this.baseUrl}/api/merchants/${merchantId}/operations/summary`, {
+        const response = await fetch(`${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/summary`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
             signal,
@@ -43,9 +42,9 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     async replayOutboxEvent(
         merchantId: string,
         eventId: string,
-    ): Promise<{ outcome: string; eventId: string; status: string; message?: string }> {
+    ): Promise<ReplayOutboxEventResult> {
         const response = await fetch(
-            `${this.baseUrl}/api/merchants/${merchantId}/operations/outbox/${eventId}/replay`,
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/outbox/${encodeURIComponent(eventId)}/replay`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -70,13 +69,13 @@ export class HttpOperationsApiClient implements OperationsApiClient {
         return await response.json();
     }
 
-    async getEventTimeline(
+    async getRecentWebhooks(
         merchantId: string,
-        identifier: string,
+        limit = 25,
         signal?: AbortSignal,
-    ): Promise<OperationsTimelineResponse> {
+    ): Promise<{ items: WebhookEventRecord[] }> {
         const response = await fetch(
-            `${this.baseUrl}/api/merchants/${merchantId}/operations/timeline/${encodeURIComponent(identifier)}`,
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/webhooks?limit=${limit}`,
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
@@ -93,7 +92,39 @@ export class HttpOperationsApiClient implements OperationsApiClient {
             }
             throw new ApiClientError(
                 typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
-                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch operations timeline',
+                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch webhooks',
+                response.status,
+                errorBody['details'],
+            );
+        }
+
+        return await response.json();
+    }
+
+    async getEventTimeline(
+        merchantId: string,
+        eventId: string,
+        signal?: AbortSignal,
+    ): Promise<EventTimelineResult> {
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/events/${encodeURIComponent(eventId)}/timeline`,
+            {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+            },
+        );
+
+        if (!response.ok) {
+            let errorBody: Record<string, unknown> = {};
+            try {
+                errorBody = (await response.json()) as Record<string, unknown>;
+            } catch {
+                // non-json
+            }
+            throw new ApiClientError(
+                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
+                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch event timeline',
                 response.status,
                 errorBody['details'],
             );
@@ -134,32 +165,59 @@ export class MockOperationsApiClient implements OperationsApiClient {
     async replayOutboxEvent(
         _merchantId: string,
         eventId: string,
-    ): Promise<{ outcome: string; eventId: string; status: string; message?: string }> {
+    ): Promise<ReplayOutboxEventResult> {
         return {
             outcome: 'replayed',
             eventId,
             status: 'PENDING',
-            message: 'Outbox event successfully queued for processing',
+            replayedAt: new Date().toISOString(),
+            replayedBy: 'mock-operator',
         };
     }
 
-    async getEventTimeline(
-        merchantId: string,
-        identifier: string,
-    ): Promise<OperationsTimelineResponse> {
-        const now = new Date().toISOString();
+    async getRecentWebhooks(): Promise<{ items: WebhookEventRecord[] }> {
+        return {
+            items: [
+                {
+                    id: 'mock-wh-1',
+                    merchantId: 'mock-merchant-001',
+                    provider: 'PAYPAL',
+                    providerConnectionId: 'mock-conn-001',
+                    providerEventId: 'WH-89X-001',
+                    eventType: 'PAYMENT.CAPTURE.COMPLETED',
+                    resourceType: 'capture',
+                    transmissionId: 'trans-mock-001',
+                    transmissionTime: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+                    verifiedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+                    receivedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+                    processingStatus: 'PROCESSED',
+                },
+            ],
+        };
+    }
+
+    async getEventTimeline(merchantId: string, eventId: string): Promise<EventTimelineResult> {
         return {
             merchantId,
-            identifier,
-            pipelineOutcome: 'SUCCESS',
-            summary: 'Operations timeline evaluated: 6/6 stages completed (SUCCESS).',
-            stages: [
-                { stage: 'WEBHOOK_RECEIVED', label: 'Webhook Received', status: 'COMPLETED', timestamp: now, evidenceId: 'wh-mock-01', summary: 'PayPal webhook received' },
-                { stage: 'SIGNATURE_VERIFIED', label: 'Signature Verified', status: 'COMPLETED', timestamp: now, evidenceId: 'sig-mock-01', summary: 'Cryptographic signature verified' },
-                { stage: 'INBOX_STORED', label: 'Inbox Stored', status: 'COMPLETED', timestamp: now, evidenceId: 'inbox-mock-01', summary: 'Payload persisted in database' },
-                { stage: 'OUTBOX_ENQUEUED', label: 'Outbox Enqueued', status: 'COMPLETED', timestamp: now, evidenceId: 'outbox-mock-01', summary: 'Transactional outbox event created' },
-                { stage: 'WORKER_PROCESSED', label: 'Worker Processed', status: 'COMPLETED', timestamp: now, evidenceId: 'worker-mock-01', summary: 'Worker dispatched event (attempt 1/5)' },
-                { stage: 'LEDGER_RECORDED', label: 'Ledger Recorded', status: 'COMPLETED', timestamp: now, evidenceId: 'ledger-mock-01', summary: 'Transaction recorded in ledger' },
+            rootEventId: eventId,
+            generatedAt: new Date().toISOString(),
+            steps: [
+                {
+                    step: 'webhook_received',
+                    title: 'Webhook Received & Verified',
+                    status: 'success',
+                    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+                    entityId: 'mock-wh-1',
+                    summary: 'PayPal webhook verified successfully.',
+                },
+                {
+                    step: 'outbox_dispatched',
+                    title: 'Transactional Outbox Dispatch',
+                    status: 'success',
+                    timestamp: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
+                    entityId: eventId,
+                    summary: 'Outbox event dispatched cleanly.',
+                },
             ],
         };
     }

@@ -170,9 +170,6 @@ export interface ExceptionsApiClient {
     listAiInvestigations(merchantId: string, exceptionId: string, signal?: AbortSignal, ctx?: OperatorContext): Promise<InvestigationRecord[]>;
 }
 
-// ---------------------------------------------------------------------------
-// AI Investigator Contracts (Day 15/16)
-// ---------------------------------------------------------------------------
 
 export type InvestigationStatus = 'SUCCESS' | 'INSUFFICIENT_EVIDENCE' | 'FAILED';
 export type ConfidenceLevel = 'low' | 'medium' | 'high';
@@ -242,6 +239,7 @@ export interface ProviderConnectionSummary {
     provider: ProviderCode;
     connectionKey: string;
     providerAccountId: string | null;
+    webhookId?: string | null;
     status: ProviderConnectionStatus;
     createdAt: string;
     updatedAt: string;
@@ -404,9 +402,6 @@ export interface BatchIngestResult {
     results: BatchItemResult[];
 }
 
-// ---------------------------------------------------------------------------
-// Reconciliation Run & Match Types (Day 12)
-// ---------------------------------------------------------------------------
 
 export type ReconciliationRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
@@ -515,11 +510,6 @@ export interface ListMatchesResult {
     items: ReconciliationMatchSummary[];
     pagination: PaginationMetadata;
 }
-
-
-// ---------------------------------------------------------------------------
-// Dashboard Overview Types (Day 13)
-// ---------------------------------------------------------------------------
 
 export interface DashboardDateRangeFilter {
     from?: string;
@@ -633,102 +623,57 @@ export interface OperationsSummary {
     deadLetterQueue: DeadLetterRecord[];
 }
 
+export interface WebhookEventRecord {
+    id: string;
+    merchantId: string;
+    provider: string;
+    providerConnectionId: string;
+    providerEventId: string;
+    eventType: string;
+    resourceType: string | null;
+    transmissionId: string | null;
+    transmissionTime: string | null;
+    verifiedAt: string;
+    receivedAt: string;
+    processingStatus: 'RECEIVED' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
+}
+
+export interface ReplayOutboxEventResult {
+    outcome: 'replayed' | 'rejected' | 'already_queued';
+    eventId: string;
+    status: string;
+    reason?: string;
+    replayedAt?: string;
+    replayedBy?: string;
+}
+
+export interface TimelineStep {
+    step:
+        | 'webhook_received'
+        | 'webhook_processed'
+        | 'outbox_dispatched'
+        | 'provider_transaction'
+        | 'reconciliation_run'
+        | 'exception_or_match';
+    title: string;
+    status: 'success' | 'failed' | 'pending' | 'missing' | 'not_applicable';
+    timestamp: string | null;
+    entityId: string | null;
+    summary: string;
+    details?: Record<string, any>;
+    error?: string | null;
+}
+
+export interface EventTimelineResult {
+    merchantId: string;
+    rootEventId: string;
+    generatedAt: string;
+    steps: TimelineStep[];
+}
+
 export interface OperationsApiClient {
     getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary>;
-    replayOutboxEvent(
-        merchantId: string,
-        eventId: string,
-    ): Promise<{ outcome: string; eventId: string; status: string; message?: string }>;
-    getEventTimeline?(
-        merchantId: string,
-        identifier: string,
-        signal?: AbortSignal,
-    ): Promise<OperationsTimelineResponse>;
-}
-
-// ---------------------------------------------------------------------------
-// Portfolio Trends & Operations Timeline Types (Day 31)
-// ---------------------------------------------------------------------------
-
-export interface IncompleteRunSummary {
-    runId: string;
-    status: string;
-    createdAt: string;
-    failureReason: string | null;
-}
-
-export interface RunTrendDataPoint {
-    runId: string;
-    createdAt: string;
-    status: string;
-    rulesetVersion: string;
-    totalConsidered: number;
-    eligibleCount: number;
-    matchedCount: number;
-    unmatchedCount: number;
-    ambiguousCount: number;
-    excludedCount: number;
-    matchRatePercentage: number | null;
-}
-
-export interface LifecycleFlowSummary {
-    inflowCount: number;
-    outflowCount: number;
-    resolvedCount: number;
-    dismissedCount: number;
-    reopenedCount: number;
-    netActiveDelta: number;
-}
-
-export interface RecurringPatternCohort {
-    fingerprint: string;
-    type: string;
-    reasonCode: string;
-    currency: string;
-    count: number;
-    totalAmountMinor: string;
-}
-
-export interface CurrencyExposure {
-    currency: string;
-    totalAmountMinor: string;
-    count: number;
-    decimalPlaces: number;
-}
-
-export interface PortfolioTrendsResponse {
-    merchantId: string;
-    generatedAt: string;
-    status: 'READY' | 'INSUFFICIENT_HISTORY' | 'UNAVAILABLE';
-    insufficientReason?: string;
-    window: {
-        preset: '7d' | '30d' | '90d';
-        windowStart: string;
-        windowEnd: string;
-    };
-    totalRunsConsidered: number;
-    completedRunsCount: number;
-    incompleteRuns: IncompleteRunSummary[];
-    trendPoints: RunTrendDataPoint[];
-    lifecycleFlow: LifecycleFlowSummary;
-    recurringPatterns: RecurringPatternCohort[];
-    currencyExposures: Record<string, CurrencyExposure>;
-}
-
-export interface OperationsTimelineStage {
-    stage: string;
-    label: string;
-    status: 'COMPLETED' | 'FAILED' | 'PENDING' | 'PROCESSING' | 'NOT_REACHED' | 'MISSING';
-    timestamp: string | null;
-    evidenceId: string | null;
-    summary: string;
-    data?: Record<string, unknown>;
-}
-
-export interface OperationsTimelineResponse {
-    merchantId: string;
-    identifier: string;
-    stages: OperationsTimelineStage[];
-    pipelineOutcome: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS' | 'PARTIAL';
-    summary: string;
+    replayOutboxEvent(merchantId: string, eventId: string): Promise<ReplayOutboxEventResult>;
+    getRecentWebhooks(merchantId: string, limit?: number, signal?: AbortSignal): Promise<{ items: WebhookEventRecord[] }>;
+    getEventTimeline(merchantId: string, eventId: string, signal?: AbortSignal): Promise<EventTimelineResult>;
 }
