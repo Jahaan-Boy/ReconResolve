@@ -517,6 +517,58 @@ The production adapter uses the official `@google/genai` SDK.
     LIVE_AI_TEST=true GEMINI_API_KEY="your-key" npm test test/services/ai-investigator/gemini-live-smoke.integration.test.ts
     ```
 
+---
+
+## 10. Intelligence Center, Conversational Copilot & Operations Console (Day 29)
+
+### A. Reconciliation Copilot (`copilot`)
+A natural-language assistant grounded strictly in verified PostgreSQL reconciliation records.
+* **Endpoints:**
+  * `POST /api/merchants/:merchantId/copilot/ask` — Evaluates user queries using a constrained intent router and returns structured answers.
+  * `GET /api/merchants/:merchantId/copilot/capabilities` — Returns supported query categories and sample prompts.
+* **Supported Intent Categories:**
+  1. `largest_unresolved_exceptions` — Identifies the highest financial exposure discrepancies.
+  2. `exception_breakdown` — Computes exact open/resolved counts and exposure grouped by `ExceptionType`.
+  3. `run_comparison` — Compares consecutive reconciliation runs (match rate delta, unmatched count shift).
+  4. `recent_run_summary` — Summarizes considered items, match rate, and created exceptions from the latest run.
+  5. `duplicate_candidates` — Detects provider transactions with identical order IDs or recurring amounts.
+  6. `missing_order_exceptions` — Lists orphaned PayPal captures lacking internal merchant orders.
+  7. `general_reconciliation_summary` — High-level queue health and historical run volume.
+* **Correctness Guarantees:**
+  * **Strict Grounding:** Never executes arbitrary SQL or ORM calls from user input.
+  * **Structured Separation:** Clearly delineates `observedFacts` (database records), `interpretations` (advisory inferences), and `unknowns` (information gaps).
+  * **Decimal Safety:** Currency arithmetic is performed on BigInt minor units. Cross-currency sums are never combined.
+  * **Deterministic Fallback:** Operates without live LLM dependencies, explicitly labeling outputs with `isAiGenerated: false`.
+
+### B. Portfolio Intelligence (`intelligence`)
+Automated clustering and operational priority scoring across the merchant's discrepancy queue.
+* **Endpoint:**
+  * `GET /api/merchants/:merchantId/intelligence/portfolio?window=24h|7d|30d|all`
+* **Pattern Groups:**
+  * Groups exceptions on actual persisted dimensions: `MISSING_MERCHANT_COUNTERPART`, `MISSING_PROVIDER_COUNTERPART`, `AMOUNT_MISMATCH`, `STATUS_DISCREPANCY`, `AMBIGUOUS_MATCH`.
+* **Exposure Basis:**
+  * Attributed to either provider transaction gross, order amount, or absolute discrepancy delta.
+  * Explicitly segmented by ISO currency code.
+* **Explainable Priority Formula (v1.0):**
+  * Computes deterministic priority bands (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`) based on:
+    * Financial threshold (≥ 500.00 minor = Critical; ≥ 100.00 = High)
+    * Aging cohort (> 7 days unresolved = Critical; > 3 days = High)
+    * Discrepancy category (Ambiguous match / Status discrepancy escalation)
+  * Returns explainable `priorityReasons` array for complete transparency.
+
+### C. Integrations & Operations Center (`operations`)
+Dedicated operational control plane for payment provider health, webhooks, and outbox durability.
+* **Endpoints:**
+  * `GET /api/merchants/:merchantId/connections` — Real-time connection status (`ACTIVE`, `DISABLED`, `NEEDS_REAUTH`).
+  * `GET /api/merchants/:merchantId/operations/summary` — Pipeline health and queue metrics (pending, processing, failed, dispatched, dead-letter).
+  * `GET /api/merchants/:merchantId/operations/webhooks` — Bounded audit list of recent sanitized webhook events.
+  * `POST /api/merchants/:merchantId/operations/outbox/:eventId/replay` — Item-level replay of failed transactional outbox events (role restricted to `OWNER` / `ADMIN`).
+* **Security & Invariants:**
+  * Credentials, private keys, and client secrets are strictly redacted and never exposed over APIs or UI.
+  * Raw webhook payloads are excluded from default telemetry views to prevent sensitive PII leakage.
+  * Independent per-panel error and loading states prevent cascading dashboard failures.
+
+
 
 
 

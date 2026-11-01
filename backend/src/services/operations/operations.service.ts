@@ -24,6 +24,9 @@ export interface OperationsServiceDb {
     exceptionInvestigation?: {
         count(args: any): Promise<number>;
     };
+    webhookEvent?: {
+        findMany(args: any): Promise<any[]>;
+    };
 }
 
 export interface OperationsServiceDeps {
@@ -241,5 +244,34 @@ export class OperationsService {
             replayedAt: now.toISOString(),
             replayedBy: context.actorId,
         };
+    }
+
+    async getRecentWebhooks(merchantId: string, limit: number = 25): Promise<any[]> {
+        if (!merchantId || !UUID_REGEX.test(merchantId)) {
+            throw OperationsError.invalidInput('merchantId must be a valid UUID');
+        }
+        if (!this.db.webhookEvent) {
+            return [];
+        }
+        const events = await this.db.webhookEvent.findMany({
+            where: { merchantId },
+            orderBy: { receivedAt: 'desc' },
+            take: Math.min(Math.max(limit, 1), 50),
+            select: {
+                id: true,
+                merchantId: true,
+                provider: true,
+                providerConnectionId: true,
+                providerEventId: true,
+                eventType: true,
+                resourceType: true,
+                transmissionId: true,
+                transmissionTime: true,
+                verifiedAt: true,
+                receivedAt: true,
+                processingStatus: true,
+            },
+        });
+        return events;
     }
 }

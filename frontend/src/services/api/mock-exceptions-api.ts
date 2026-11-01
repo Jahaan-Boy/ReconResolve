@@ -909,10 +909,6 @@ export class MockExceptionsApiClient implements ExceptionsApiClient {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Mock Dashboard Client (Day 13)
-// ---------------------------------------------------------------------------
-
 import type {
     DashboardApiClient,
     DashboardDateRangeFilter,

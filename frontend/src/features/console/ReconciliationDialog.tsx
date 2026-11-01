@@ -394,29 +394,29 @@ export function ReconciliationDialog({
         switch (status) {
             case 'RUNNING':
                 return (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
                         Running
                     </span>
                 );
             case 'COMPLETED':
                 return (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        <CheckCircle className="size-3 text-emerald-400" />
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <CheckCircle className="size-3 text-emerald-600" />
                         Completed
                     </span>
                 );
             case 'FAILED':
                 return (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                        <AlertCircle className="size-3 text-rose-400" />
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                        <AlertCircle className="size-3 text-rose-600" />
                         Failed
                     </span>
                 );
             default:
                 return (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-800 text-zinc-400 border border-zinc-700">
-                        <Clock className="size-3 text-zinc-400" />
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        <Clock className="size-3 text-slate-400" />
                         Pending
                     </span>
                 );
@@ -424,22 +424,22 @@ export function ReconciliationDialog({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-6xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="relative w-full max-w-6xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[90vh]">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/60 shrink-0">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl">
+                        <div className="p-2.5 bg-fin-brand/10 text-fin-brand border border-fin-brand/20 rounded-xl">
                             <GitCommit className="size-5" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-base font-semibold text-white">Reconciliation Hub</h2>
-                                <span className="text-[11px] font-mono px-2 py-0.5 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-md">
+                                <h2 className="text-base font-semibold text-slate-900">Reconciliation Hub</h2>
+                                <span className="text-[11px] font-mono px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-md">
                                     Merchant {truncateId(merchantId, 6, 4)}
                                 </span>
                             </div>
-                            <p className="text-xs text-zinc-400">
+                            <p className="text-xs text-slate-500">
                                 Run history, deterministic match evidence, and run execution
                             </p>
                         </div>
@@ -452,7 +452,7 @@ export function ReconciliationDialog({
                                 loadRuns();
                                 if (selectedRunId) loadRunDetail(selectedRunId);
                             }}
-                            className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition"
+                            className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition"
                             title="Refresh Runs"
                         >
                             <RefreshCw className={`size-4 ${loadingRuns ? 'animate-spin' : ''}`} />
@@ -460,7 +460,7 @@ export function ReconciliationDialog({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition"
+                            className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition"
                             title="Close"
                         >
                             <X className="size-5" />
@@ -469,21 +469,21 @@ export function ReconciliationDialog({
                 </div>
 
                 {/* Tabs */}
-                <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/40 px-6 shrink-0">
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-6 shrink-0">
                     <div className="flex gap-4">
                         <button
                             type="button"
                             onClick={() => setActiveTab('history')}
                             className={`flex items-center gap-2 py-3 text-xs font-semibold border-b-2 transition-colors ${
                                 activeTab === 'history'
-                                    ? 'border-emerald-500 text-emerald-400'
-                                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                                    ? 'border-fin-brand text-fin-brand'
+                                    : 'border-transparent text-slate-500 hover:text-slate-800'
                             }`}
                         >
                             <Layers className="size-4" />
                             <span>Run History & Matches</span>
                             {runs.length > 0 && (
-                                <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-800 text-zinc-300">
+                                <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 font-medium">
                                     {runs.length}
                                 </span>
                             )}
@@ -494,14 +494,14 @@ export function ReconciliationDialog({
                             onClick={() => setActiveTab('initiate')}
                             className={`flex items-center gap-2 py-3 text-xs font-semibold border-b-2 transition-colors ${
                                 activeTab === 'initiate'
-                                    ? 'border-emerald-500 text-emerald-400'
-                                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                                    ? 'border-fin-brand text-fin-brand'
+                                    : 'border-transparent text-slate-500 hover:text-slate-800'
                             }`}
                         >
                             <PlayCircle className="size-4" />
                             <span>Run Reconciliation</span>
                             {!isAuthorizedToInitiate && (
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-normal">
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 font-normal">
                                     Read-Only
                                 </span>
                             )}
@@ -509,13 +509,13 @@ export function ReconciliationDialog({
                     </div>
 
                     {isPolling && (
-                        <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
-                            <span className="size-2 rounded-full bg-amber-400 animate-pulse" />
+                        <div className="flex items-center gap-2 text-xs text-amber-700 font-medium bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                            <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
                             <span>Checking run status ({pollAttemptCount}/{MAX_POLL_ATTEMPTS})</span>
                             <button
                                 type="button"
                                 onClick={stopPolling}
-                                className="text-[11px] underline text-zinc-400 hover:text-zinc-200 ml-1"
+                                className="text-[11px] underline text-amber-800 hover:text-amber-950 ml-1 font-semibold"
                             >
                                 Stop
                             </button>
@@ -528,11 +528,11 @@ export function ReconciliationDialog({
                     {activeTab === 'history' ? (
                         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden h-full">
                             {/* Left Master: Run History List (5 cols) */}
-                            <div className="lg:col-span-5 border-r border-zinc-800 flex flex-col h-full bg-zinc-900/50 overflow-hidden">
+                            <div className="lg:col-span-5 border-r border-slate-200 flex flex-col h-full bg-slate-50/50 overflow-hidden">
                                 {/* Run Status Filter */}
-                                <div className="p-3 border-b border-zinc-800 flex items-center justify-between gap-2 bg-zinc-900/80">
-                                    <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium">
-                                        <Filter className="size-3.5 text-zinc-500" />
+                                <div className="p-3 border-b border-slate-200 flex items-center justify-between gap-2 bg-white">
+                                    <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                                        <Filter className="size-3.5 text-slate-400" />
                                         <span>Status Filter:</span>
                                     </div>
                                     <select
@@ -541,7 +541,7 @@ export function ReconciliationDialog({
                                             setSelectedStatusFilter(e.target.value as ReconciliationRunStatus | '');
                                             setRunsCursorHistory([]);
                                         }}
-                                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500"
+                                        className="bg-white border border-slate-300 text-slate-800 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-fin-brand focus:ring-1 focus:ring-fin-brand/30"
                                     >
                                         <option value="">All Statuses</option>
                                         <option value="COMPLETED">Completed</option>
@@ -551,36 +551,36 @@ export function ReconciliationDialog({
                                 </div>
 
                                 {/* Runs List Items */}
-                                <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/60">
+                                <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                                     {loadingRuns && runs.length === 0 ? (
-                                        <div className="p-6 text-center text-xs text-zinc-500 space-y-2">
-                                            <RefreshCw className="size-5 animate-spin mx-auto text-zinc-400" />
+                                        <div className="p-6 text-center text-xs text-slate-500 space-y-2">
+                                            <RefreshCw className="size-5 animate-spin mx-auto text-fin-brand" />
                                             <div>Loading reconciliation runs...</div>
                                         </div>
                                     ) : runsError ? (
-                                        <div className="p-6 text-center text-xs text-rose-400 space-y-2">
-                                            <AlertCircle className="size-5 mx-auto text-rose-400" />
+                                        <div className="p-6 text-center text-xs text-rose-600 space-y-2">
+                                            <AlertCircle className="size-5 mx-auto text-rose-600" />
                                             <div>{runsError}</div>
                                             <button
                                                 type="button"
                                                 onClick={() => loadRuns()}
-                                                className="px-3 py-1 bg-zinc-800 text-zinc-200 rounded-md hover:bg-zinc-700"
+                                                className="px-3 py-1 bg-white border border-slate-200 text-slate-700 rounded-md hover:bg-slate-50 shadow-2xs"
                                             >
                                                 Retry
                                             </button>
                                         </div>
                                     ) : runs.length === 0 ? (
-                                        <div className="p-8 text-center text-xs text-zinc-500 space-y-3">
-                                            <GitCommit className="size-8 mx-auto text-zinc-600" />
-                                            <div className="font-medium text-zinc-400">No reconciliation runs found</div>
-                                            <p className="text-[11px] text-zinc-500 max-w-xs mx-auto">
+                                        <div className="p-8 text-center text-xs text-slate-500 space-y-3">
+                                            <GitCommit className="size-8 mx-auto text-slate-300" />
+                                            <div className="font-semibold text-slate-700">No reconciliation runs found</div>
+                                            <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
                                                 Initiate a run to deterministically match PayPal captures against merchant orders.
                                             </p>
                                             {isAuthorizedToInitiate && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setActiveTab('initiate')}
-                                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold"
+                                                    className="px-3 py-1.5 bg-fin-brand hover:bg-fin-brand-hover text-white rounded-lg text-xs font-semibold shadow-2xs"
                                                 >
                                                     Start First Run
                                                 </button>
@@ -596,45 +596,45 @@ export function ReconciliationDialog({
                                                     onClick={() => setSelectedRunId(r.id)}
                                                     className={`w-full p-4 text-left transition-colors flex flex-col gap-2 ${
                                                         isSelected
-                                                            ? 'bg-emerald-500/10 border-l-4 border-emerald-500 pl-3'
-                                                            : 'hover:bg-zinc-800/40'
+                                                            ? 'bg-fin-brand/5 border-l-4 border-fin-brand pl-3'
+                                                            : 'hover:bg-slate-100/70'
                                                     }`}
                                                 >
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-mono text-xs font-medium text-zinc-300">
+                                                            <span className="font-mono text-xs font-semibold text-slate-900">
                                                                 {truncateId(r.id, 8, 4)}
                                                             </span>
-                                                            <span className="text-[10px] px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">
+                                                            <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded">
                                                                 {r.rulesetVersion}
                                                             </span>
                                                         </div>
                                                         {renderStatusBadge(r.status)}
                                                     </div>
 
-                                                    <div className="grid grid-cols-4 gap-1 text-[11px] font-mono text-center bg-zinc-950/40 p-1.5 rounded-lg border border-zinc-800/80">
+                                                    <div className="grid grid-cols-4 gap-1 text-[11px] font-mono text-center bg-white p-1.5 rounded-lg border border-slate-200/90 shadow-2xs">
                                                         <div>
-                                                            <div className="text-[9px] text-zinc-500">MATCH</div>
-                                                            <div className="text-emerald-400 font-semibold">{r.matchedCount}</div>
+                                                            <div className="text-[9px] text-slate-400 font-sans font-medium">MATCH</div>
+                                                            <div className="text-emerald-700 font-semibold">{r.matchedCount}</div>
                                                         </div>
                                                         <div>
-                                                            <div className="text-[9px] text-zinc-500">UNMATCH</div>
-                                                            <div className="text-amber-400 font-semibold">{r.unmatchedCount}</div>
+                                                            <div className="text-[9px] text-slate-400 font-sans font-medium">UNMATCH</div>
+                                                            <div className="text-amber-700 font-semibold">{r.unmatchedCount}</div>
                                                         </div>
                                                         <div>
-                                                            <div className="text-[9px] text-zinc-500">AMBIG</div>
-                                                            <div className="text-purple-400 font-semibold">{r.ambiguousCount}</div>
+                                                            <div className="text-[9px] text-slate-400 font-sans font-medium">AMBIG</div>
+                                                            <div className="text-purple-700 font-semibold">{r.ambiguousCount}</div>
                                                         </div>
                                                         <div>
-                                                            <div className="text-[9px] text-zinc-500">TOTAL</div>
-                                                            <div className="text-zinc-300 font-semibold">{r.totalConsidered}</div>
+                                                            <div className="text-[9px] text-slate-400 font-sans font-medium">TOTAL</div>
+                                                            <div className="text-slate-800 font-semibold">{r.totalConsidered}</div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                                                    <div className="flex items-center justify-between text-[11px] text-slate-500">
                                                         <span>{formatTimestamp(r.createdAt)}</span>
                                                         {r.completedAt && (
-                                                            <span className="text-[10px] text-zinc-400">
+                                                            <span className="text-[10px] text-slate-400 font-medium">
                                                                 Completed
                                                             </span>
                                                         )}
@@ -646,7 +646,7 @@ export function ReconciliationDialog({
                                 </div>
 
                                 {/* Pagination Footer for Runs */}
-                                <div className="p-3 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between text-xs text-zinc-400">
+                                <div className="p-3 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-600">
                                     <div className="text-[11px]">
                                         Page {runsCursorHistory.length + 1}
                                         {runsPagination.totalCount !== undefined && ` of ${Math.ceil(runsPagination.totalCount / runsPagination.limit)}`}
@@ -656,7 +656,7 @@ export function ReconciliationDialog({
                                             type="button"
                                             disabled={runsCursorHistory.length === 0 || loadingRuns}
                                             onClick={handlePrevRunsPage}
-                                            className="p-1 rounded hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
                                             <ChevronLeft className="size-4" />
                                         </button>
@@ -664,7 +664,7 @@ export function ReconciliationDialog({
                                             type="button"
                                             disabled={!runsPagination.hasMore || loadingRuns}
                                             onClick={handleNextRunsPage}
-                                            className="p-1 rounded hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
                                             <ChevronRight className="size-4" />
                                         </button>
@@ -673,25 +673,25 @@ export function ReconciliationDialog({
                             </div>
 
                             {/* Right Detail & Matches (7 cols) */}
-                            <div className="lg:col-span-7 flex flex-col h-full bg-zinc-900 overflow-hidden">
+                            <div className="lg:col-span-7 flex flex-col h-full bg-white overflow-hidden">
                                 {selectedRun ? (
                                     <div className="flex-1 flex flex-col overflow-hidden">
                                         {/* Run Banner / Overview Card */}
-                                        <div className="p-5 border-b border-zinc-800 bg-zinc-950/30 space-y-3 shrink-0">
+                                        <div className="p-5 border-b border-slate-200 bg-slate-50/50 space-y-3 shrink-0">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs text-zinc-400 font-medium">Run ID:</span>
-                                                    <span className="font-mono text-xs text-white font-semibold">
+                                                    <span className="text-xs text-slate-500 font-medium">Run ID:</span>
+                                                    <span className="font-mono text-xs text-slate-900 font-semibold">
                                                         {selectedRun.id}
                                                     </span>
                                                     <button
                                                         type="button"
                                                         onClick={() => copyToClipboard(selectedRun.id)}
-                                                        className="text-zinc-500 hover:text-zinc-300 transition"
+                                                        className="text-slate-400 hover:text-slate-700 transition"
                                                         title="Copy Run ID"
                                                     >
                                                         {copiedId === selectedRun.id ? (
-                                                            <Check className="size-3.5 text-emerald-400" />
+                                                            <Check className="size-3.5 text-emerald-600" />
                                                         ) : (
                                                             <Copy className="size-3.5" />
                                                         )}
@@ -702,27 +702,27 @@ export function ReconciliationDialog({
 
                                             {/* Window & Timestamps */}
                                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                                                <div className="p-2 rounded bg-zinc-800/40 border border-zinc-800">
-                                                    <div className="text-[10px] text-zinc-500 font-medium">Window Start</div>
-                                                    <div className="font-mono text-[11px] text-zinc-200 mt-0.5">
+                                                <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-2xs">
+                                                    <div className="text-[10px] text-slate-400 font-medium">Window Start</div>
+                                                    <div className="font-mono text-[11px] text-slate-800 mt-0.5">
                                                         {formatTimestamp(selectedRun.windowStart)}
                                                     </div>
                                                 </div>
-                                                <div className="p-2 rounded bg-zinc-800/40 border border-zinc-800">
-                                                    <div className="text-[10px] text-zinc-500 font-medium">Window End</div>
-                                                    <div className="font-mono text-[11px] text-zinc-200 mt-0.5">
+                                                <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-2xs">
+                                                    <div className="text-[10px] text-slate-400 font-medium">Window End</div>
+                                                    <div className="font-mono text-[11px] text-slate-800 mt-0.5">
                                                         {formatTimestamp(selectedRun.windowEnd)}
                                                     </div>
                                                 </div>
-                                                <div className="p-2 rounded bg-zinc-800/40 border border-zinc-800">
-                                                    <div className="text-[10px] text-zinc-500 font-medium">Started At</div>
-                                                    <div className="font-mono text-[11px] text-zinc-200 mt-0.5">
+                                                <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-2xs">
+                                                    <div className="text-[10px] text-slate-400 font-medium">Started At</div>
+                                                    <div className="font-mono text-[11px] text-slate-800 mt-0.5">
                                                         {selectedRun.startedAt ? formatTimestamp(selectedRun.startedAt) : '—'}
                                                     </div>
                                                 </div>
-                                                <div className="p-2 rounded bg-zinc-800/40 border border-zinc-800">
-                                                    <div className="text-[10px] text-zinc-500 font-medium">Completed At</div>
-                                                    <div className="font-mono text-[11px] text-zinc-200 mt-0.5">
+                                                <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-2xs">
+                                                    <div className="text-[10px] text-slate-400 font-medium">Completed At</div>
+                                                    <div className="font-mono text-[11px] text-slate-800 mt-0.5">
                                                         {selectedRun.completedAt ? formatTimestamp(selectedRun.completedAt) : 'In progress'}
                                                     </div>
                                                 </div>
@@ -730,15 +730,15 @@ export function ReconciliationDialog({
 
                                             {/* Status Outcome Banner */}
                                             {selectedRun.status === 'RUNNING' && (
-                                                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs flex items-center justify-between text-amber-300">
+                                                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs flex items-center justify-between text-amber-800">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="size-2 rounded-full bg-amber-400 animate-ping" />
+                                                        <span className="size-2 rounded-full bg-amber-500 animate-ping" />
                                                         <span>Reconciliation engine is actively executing. Refreshing status automatically...</span>
                                                     </div>
                                                     <button
                                                         type="button"
                                                         onClick={() => loadRunDetail(selectedRun.id)}
-                                                        className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded font-semibold text-[11px]"
+                                                        className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold text-[11px]"
                                                     >
                                                         Refresh Now
                                                     </button>
@@ -746,24 +746,24 @@ export function ReconciliationDialog({
                                             )}
 
                                             {selectedRun.status === 'FAILED' && (
-                                                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 space-y-1">
+                                                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-1">
                                                     <div className="font-semibold flex items-center gap-1.5">
-                                                        <AlertCircle className="size-4 text-rose-400" />
+                                                        <AlertCircle className="size-4 text-rose-600" />
                                                         <span>Run Failed</span>
                                                     </div>
-                                                    <p className="text-[11px] text-rose-400 font-mono">
+                                                    <p className="text-[11px] text-rose-700 font-mono">
                                                         {selectedRun.failureReason || 'An error occurred during run execution.'}
                                                     </p>
                                                 </div>
                                             )}
 
                                             {selectedRun.status === 'COMPLETED' && selectedRun.matchedCount === 0 && (
-                                                <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 space-y-1">
+                                                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 space-y-1">
                                                     <div className="font-semibold flex items-center gap-1.5">
-                                                        <CheckCircle2 className="size-4 text-blue-400" />
+                                                        <CheckCircle2 className="size-4 text-blue-600" />
                                                         <span>Completed with Zero Exact Matches</span>
                                                     </div>
-                                                    <p className="text-[11px] text-blue-400">
+                                                    <p className="text-[11px] text-blue-700">
                                                         The engine evaluated {selectedRun.totalConsidered} transactions. Unmatched and ambiguous records have been recorded as discrepancies in the Exceptions Queue.
                                                     </p>
                                                 </div>
@@ -772,10 +772,10 @@ export function ReconciliationDialog({
 
                                         {/* Matches Section */}
                                         <div className="flex-1 flex flex-col overflow-hidden">
-                                            <div className="p-3 border-b border-zinc-800 bg-zinc-950/60 flex items-center justify-between shrink-0">
+                                            <div className="p-3 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between shrink-0">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-semibold text-white">Exact Matches</span>
-                                                    <span className="text-xs text-zinc-400 font-mono">({selectedRun.matchedCount})</span>
+                                                    <span className="text-xs font-semibold text-slate-900">Exact Matches</span>
+                                                    <span className="text-xs text-slate-500 font-mono">({selectedRun.matchedCount})</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <input
@@ -787,7 +787,7 @@ export function ReconciliationDialog({
                                                             setMatchesCursorHistory([]);
                                                             loadMatches(selectedRun.id);
                                                         }}
-                                                        className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500"
+                                                        className="bg-white border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-fin-brand focus:ring-1 focus:ring-fin-brand/30"
                                                     />
                                                 </div>
                                             </div>
@@ -795,33 +795,33 @@ export function ReconciliationDialog({
                                             {/* Matches Table */}
                                             <div className="flex-1 overflow-y-auto">
                                                 {loadingMatches && matches.length === 0 ? (
-                                                    <div className="p-8 text-center text-xs text-zinc-500 space-y-2">
-                                                        <RefreshCw className="size-5 animate-spin mx-auto text-zinc-400" />
+                                                    <div className="p-8 text-center text-xs text-slate-500 space-y-2">
+                                                        <RefreshCw className="size-5 animate-spin mx-auto text-fin-brand" />
                                                         <div>Loading matches...</div>
                                                     </div>
                                                 ) : matchesError ? (
-                                                    <div className="p-8 text-center text-xs text-rose-400 space-y-2">
-                                                        <AlertCircle className="size-5 mx-auto text-rose-400" />
+                                                    <div className="p-8 text-center text-xs text-rose-600 space-y-2">
+                                                        <AlertCircle className="size-5 mx-auto text-rose-600" />
                                                         <div>{matchesError}</div>
                                                     </div>
                                                 ) : matches.length === 0 ? (
-                                                    <div className="p-8 text-center text-xs text-zinc-500 space-y-1">
-                                                        <div className="font-medium text-zinc-400">No matches for this run view</div>
-                                                        <p className="text-[11px] text-zinc-500">
+                                                    <div className="p-8 text-center text-xs text-slate-500 space-y-1">
+                                                        <div className="font-semibold text-slate-700">No matches for this run view</div>
+                                                        <p className="text-[11px] text-slate-500">
                                                             {selectedRun.matchedCount === 0
                                                                 ? 'No exact matches found.'
                                                                 : 'No matches matched the rule filter.'}
                                                         </p>
                                                     </div>
                                                 ) : (
-                                                    <div className="divide-y divide-zinc-800/60">
+                                                    <div className="divide-y divide-slate-100">
                                                         {matches.map((m) => (
-                                                            <div key={m.id} className="p-4 hover:bg-zinc-800/30 transition-colors space-y-2">
+                                                            <div key={m.id} className="p-4 hover:bg-slate-50/80 transition-colors space-y-2">
                                                                 <div className="flex items-center justify-between text-xs">
-                                                                    <span className="font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                                                    <span className="font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-semibold">
                                                                         {m.ruleCode}
                                                                     </span>
-                                                                    <span className="font-mono text-[11px] text-zinc-500">
+                                                                    <span className="font-mono text-[11px] text-slate-500">
                                                                         Match ID: {truncateId(m.id, 6, 4)}
                                                                     </span>
                                                                 </div>
@@ -829,33 +829,33 @@ export function ReconciliationDialog({
                                                                 {/* Matched Pair Grid */}
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
                                                                     {/* Provider Transaction */}
-                                                                    <div className="p-2.5 rounded-lg bg-zinc-950/40 border border-zinc-800/80">
-                                                                        <div className="text-[10px] text-zinc-500 uppercase font-semibold">
+                                                                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                                                                        <div className="text-[10px] text-slate-500 uppercase font-semibold font-sans">
                                                                             PayPal Capture
                                                                         </div>
-                                                                        <div className="text-zinc-200 font-semibold mt-1">
+                                                                        <div className="text-slate-900 font-semibold mt-1">
                                                                             {formatMinorUnits(m.providerTransaction.amountMinor, m.providerTransaction.currency)} {m.providerTransaction.currency}
                                                                         </div>
-                                                                        <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+                                                                        <div className="text-[11px] text-slate-600 truncate mt-0.5">
                                                                             TX: {m.providerTransaction.providerTxnId}
                                                                         </div>
-                                                                        <div className="text-[10px] text-zinc-500 mt-1">
+                                                                        <div className="text-[10px] text-slate-400 mt-1">
                                                                             {formatTimestamp(m.providerTransaction.occurredAt)}
                                                                         </div>
                                                                     </div>
 
                                                                     {/* Merchant Order */}
-                                                                    <div className="p-2.5 rounded-lg bg-zinc-950/40 border border-zinc-800/80">
-                                                                        <div className="text-[10px] text-zinc-500 uppercase font-semibold">
+                                                                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                                                                        <div className="text-[10px] text-slate-500 uppercase font-semibold font-sans">
                                                                             Merchant Order
                                                                         </div>
-                                                                        <div className="text-zinc-200 font-semibold mt-1">
+                                                                        <div className="text-slate-900 font-semibold mt-1">
                                                                             {formatMinorUnits(m.merchantOrder.amountMinor, m.merchantOrder.currency)} {m.merchantOrder.currency}
                                                                         </div>
-                                                                        <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+                                                                        <div className="text-[11px] text-slate-600 truncate mt-0.5">
                                                                             Order: {m.merchantOrder.externalOrderId}
                                                                         </div>
-                                                                        <div className="text-[10px] text-zinc-500 mt-1">
+                                                                        <div className="text-[10px] text-slate-400 mt-1">
                                                                             {formatTimestamp(m.merchantOrder.orderedAt)}
                                                                         </div>
                                                                     </div>
@@ -868,7 +868,7 @@ export function ReconciliationDialog({
 
                                             {/* Matches Pagination Footer */}
                                             {matches.length > 0 && (
-                                                <div className="p-3 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between text-xs text-zinc-400 shrink-0">
+                                                <div className="p-3 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-600 shrink-0">
                                                     <span className="text-[11px]">
                                                         Page {matchesCursorHistory.length + 1}
                                                     </span>
@@ -877,7 +877,7 @@ export function ReconciliationDialog({
                                                             type="button"
                                                             disabled={matchesCursorHistory.length === 0 || loadingMatches}
                                                             onClick={handlePrevMatchesPage}
-                                                            className="p-1 rounded hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                            className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
                                                         >
                                                             <ChevronLeft className="size-4" />
                                                         </button>
@@ -885,7 +885,7 @@ export function ReconciliationDialog({
                                                             type="button"
                                                             disabled={!matchesPagination.hasMore || loadingMatches}
                                                             onClick={handleNextMatchesPage}
-                                                            className="p-1 rounded hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                            className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
                                                         >
                                                             <ChevronRight className="size-4" />
                                                         </button>
@@ -895,7 +895,7 @@ export function ReconciliationDialog({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex-1 flex items-center justify-center p-8 text-center text-xs text-zinc-500">
+                                    <div className="flex-1 flex items-center justify-center p-8 text-center text-xs text-slate-500">
                                         Select a reconciliation run from the list to inspect outcome metrics and exact matches.
                                     </div>
                                 )}
@@ -903,11 +903,11 @@ export function ReconciliationDialog({
                         </div>
                     ) : (
                         /* Initiate Tab */
-                        <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
+                        <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full bg-white">
                             {!isAuthorizedToInitiate ? (
-                                <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 space-y-2 text-xs">
+                                <div className="p-5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 space-y-2 text-xs">
                                     <div className="flex items-center gap-2 font-semibold text-sm">
-                                        <ShieldAlert className="size-5 text-amber-400" />
+                                        <ShieldAlert className="size-5 text-amber-600" />
                                         <span>Permission Required</span>
                                     </div>
                                     <p>
@@ -917,19 +917,19 @@ export function ReconciliationDialog({
                             ) : (
                                 <form onSubmit={handleInitiateSubmit} className="space-y-5">
                                     <div className="space-y-1">
-                                        <h3 className="text-sm font-semibold text-white">Initiate Reconciliation Run</h3>
-                                        <p className="text-xs text-zinc-400">
+                                        <h3 className="text-sm font-semibold text-slate-900">Initiate Reconciliation Run</h3>
+                                        <p className="text-xs text-slate-500">
                                             Trigger deterministic matching between PayPal captured transactions and merchant orders.
                                         </p>
                                     </div>
 
                                     {/* Idempotency Key Notice */}
-                                    <div className="p-3 rounded-lg bg-zinc-800/40 border border-zinc-800 text-xs space-y-1">
-                                        <div className="text-zinc-400 font-medium text-[11px]">Idempotency Protection</div>
-                                        <div className="font-mono text-zinc-300 text-[11px] break-all">
+                                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
+                                        <div className="text-slate-600 font-semibold text-[11px]">Idempotency Protection</div>
+                                        <div className="font-mono text-slate-800 text-[11px] break-all">
                                             {idempotencyKey}
                                         </div>
-                                        <p className="text-[10px] text-zinc-500">
+                                        <p className="text-[10px] text-slate-500">
                                             Key is locked to this session to safely prevent accidental double-execution or replay.
                                         </p>
                                     </div>
@@ -937,7 +937,7 @@ export function ReconciliationDialog({
                                     {/* Date Range Inputs */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-medium text-zinc-300 mb-1">
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">
                                                 Window Start (From)
                                             </label>
                                             <input
@@ -945,11 +945,11 @@ export function ReconciliationDialog({
                                                 value={fromTime}
                                                 onChange={(e) => setFromTime(e.target.value)}
                                                 required
-                                                className="w-full bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg p-2.5 focus:outline-none focus:border-emerald-500 font-mono"
+                                                className="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-2.5 focus:outline-none focus:border-fin-brand focus:ring-1 focus:ring-fin-brand/30 font-mono shadow-2xs"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-zinc-300 mb-1">
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">
                                                 Window End (To)
                                             </label>
                                             <input
@@ -957,7 +957,7 @@ export function ReconciliationDialog({
                                                 value={toTime}
                                                 onChange={(e) => setToTime(e.target.value)}
                                                 required
-                                                className="w-full bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg p-2.5 focus:outline-none focus:border-emerald-500 font-mono"
+                                                className="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-2.5 focus:outline-none focus:border-fin-brand focus:ring-1 focus:ring-fin-brand/30 font-mono shadow-2xs"
                                             />
                                         </div>
                                     </div>
@@ -965,7 +965,7 @@ export function ReconciliationDialog({
                                     {/* Advanced Configuration */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-medium text-zinc-300 mb-1">
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">
                                                 Ruleset Version
                                             </label>
                                             <input
@@ -973,11 +973,11 @@ export function ReconciliationDialog({
                                                 value={rulesetVersion}
                                                 onChange={(e) => setRulesetVersion(e.target.value)}
                                                 placeholder="v1"
-                                                className="w-full bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg p-2.5 focus:outline-none focus:border-emerald-500 font-mono"
+                                                className="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-2.5 focus:outline-none focus:border-fin-brand focus:ring-1 focus:ring-fin-brand/30 font-mono shadow-2xs"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-zinc-300 mb-1">
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">
                                                 Batch Processing Size
                                             </label>
                                             <input
@@ -986,27 +986,27 @@ export function ReconciliationDialog({
                                                 max="200"
                                                 value={batchSize}
                                                 onChange={(e) => setBatchSize(e.target.value)}
-                                                className="w-full bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg p-2.5 focus:outline-none focus:border-emerald-500 font-mono"
+                                                className="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-2.5 focus:outline-none focus:border-fin-brand focus:ring-1 focus:ring-fin-brand/30 font-mono shadow-2xs"
                                             />
                                         </div>
                                     </div>
 
                                     {initiateError && (
-                                        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-                                            <AlertCircle className="size-4 shrink-0 text-rose-400" />
+                                        <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                                            <AlertCircle className="size-4 shrink-0 text-rose-600" />
                                             <span>{initiateError}</span>
                                         </div>
                                     )}
 
                                     {initiateResult && (
-                                        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs space-y-2">
+                                        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs space-y-2">
                                             <div className="flex items-center gap-2 font-semibold">
-                                                <CheckCircle2 className="size-4 text-emerald-400" />
+                                                <CheckCircle2 className="size-4 text-emerald-600" />
                                                 <span>
                                                     Run {initiateResult.outcome === 'reused' ? 'Reused (Idempotent)' : 'Initiated Successfully'}
                                                 </span>
                                             </div>
-                                            <div className="font-mono text-[11px] text-zinc-300">
+                                            <div className="font-mono text-[11px] text-slate-700">
                                                 Run ID: {initiateResult.run.id}
                                             </div>
                                             <button
@@ -1015,7 +1015,7 @@ export function ReconciliationDialog({
                                                     setSelectedRunId(initiateResult.run.id);
                                                     setActiveTab('history');
                                                 }}
-                                                className="inline-flex items-center gap-1.5 text-emerald-400 underline hover:text-emerald-300 font-medium"
+                                                className="inline-flex items-center gap-1.5 text-fin-brand hover:underline font-semibold"
                                             >
                                                 <span>View in Run History</span>
                                                 <ArrowRight className="size-3.5" />
@@ -1027,14 +1027,14 @@ export function ReconciliationDialog({
                                         <button
                                             type="button"
                                             onClick={resetInitiationForm}
-                                            className="px-3 py-2 text-xs text-zinc-400 hover:text-zinc-200 transition"
+                                            className="px-3 py-2 text-xs text-slate-500 hover:text-slate-800 transition"
                                         >
                                             Reset Form & Key
                                         </button>
                                         <button
                                             type="submit"
                                             disabled={isSubmitting}
-                                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-fin-brand hover:bg-fin-brand-hover text-white rounded-xl text-xs font-semibold shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition"
                                         >
                                             {isSubmitting ? (
                                                 <>

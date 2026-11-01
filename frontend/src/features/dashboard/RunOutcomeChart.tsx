@@ -12,14 +12,14 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
     if (!trend || trend.length < 2) {
         return (
             <div
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900/90 p-8 text-center backdrop-blur-md"
+                className="flex flex-col items-center justify-center rounded-xl border border-slate-200/90 bg-white p-8 text-center shadow-2xs"
                 role="region"
                 aria-label="Reconciliation Outcomes Trend"
             >
-                <div className="size-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mb-3">
+                <div className="size-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                     <BarChart3 className="size-5" />
                 </div>
-                <h3 className="text-sm font-semibold text-slate-300">
+                <h3 className="text-sm font-semibold text-slate-900">
                     Insufficient History for Trend
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm">
@@ -39,43 +39,45 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
 
     return (
         <div
-            className="flex flex-col rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm backdrop-blur-md"
+            className="flex flex-col rounded-xl border border-slate-200/90 bg-white p-5 shadow-2xs"
             role="region"
             aria-label="Reconciliation Outcomes Trend"
         >
             {/* Header: Title + Legend */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                    <BarChart3 className="size-4 text-emerald-400" />
-                    <h2 className="text-sm font-semibold text-white">
+                    <div className="size-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <BarChart3 className="size-4" />
+                    </div>
+                    <h2 className="text-sm font-semibold text-slate-900">
                         Run Outcomes Trend
                     </h2>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-slate-400">
                         ({trend.length} runs in window)
                     </span>
                 </div>
 
                 {/* Legend */}
                 <div
-                    className="flex flex-wrap items-center gap-3 text-xs"
+                    className="flex flex-wrap items-center gap-3.5 text-xs font-medium"
                     role="note"
                     aria-label="Outcome color legend"
                 >
                     <div className="flex items-center gap-1.5">
                         <span className="size-2.5 rounded-xs bg-emerald-500" />
-                        <span className="text-slate-300">Matched</span>
+                        <span className="text-slate-600">Matched</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className="size-2.5 rounded-xs bg-amber-500" />
-                        <span className="text-slate-300">Ambiguous</span>
+                        <span className="text-slate-600">Ambiguous</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className="size-2.5 rounded-xs bg-rose-500" />
-                        <span className="text-slate-300">Unmatched</span>
+                        <span className="text-slate-600">Unmatched</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="size-2.5 rounded-xs bg-slate-500" />
-                        <span className="text-slate-300">Excluded</span>
+                        <span className="size-2.5 rounded-xs bg-slate-400" />
+                        <span className="text-slate-600">Excluded</span>
                     </div>
                 </div>
             </div>
@@ -83,28 +85,28 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
             {/* Tooltip / Active Point Summary */}
             <div className="h-9 my-2 flex items-center justify-between text-xs">
                 {activePoint ? (
-                    <div className="flex items-center gap-3 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 text-slate-200">
-                        <span className="font-semibold text-white font-mono">{activePoint.date}</span>
-                        <span>•</span>
-                        <span className="text-emerald-400 font-medium">
+                    <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 shadow-2xs">
+                        <span className="font-semibold text-slate-900 font-mono">{activePoint.date}</span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-emerald-700 font-semibold">
                             {activePoint.matchedCount} matched ({activePoint.matchRatePercentage ?? 0}%)
                         </span>
-                        <span>•</span>
-                        <span className="text-amber-400 font-medium">
+                        <span className="text-slate-300">•</span>
+                        <span className="text-amber-700 font-semibold">
                             {activePoint.ambiguousCount} ambiguous
                         </span>
-                        <span>•</span>
-                        <span className="text-rose-400 font-medium">
+                        <span className="text-slate-300">•</span>
+                        <span className="text-rose-700 font-semibold">
                             {activePoint.unmatchedCount} unmatched
                         </span>
-                        <span>•</span>
-                        <span className="text-slate-400">
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-500">
                             {activePoint.excludedCount} excluded
                         </span>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
-                        <Info className="size-3.5 text-slate-600" />
+                    <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                        <Info className="size-3.5 text-slate-400" />
                         <span>Hover or focus on any column to inspect exact record counts and rates</span>
                     </div>
                 )}
@@ -124,7 +126,7 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                         y1={chartHeight}
                         x2={totalSvgWidth - 10}
                         y2={chartHeight}
-                        stroke="#334155"
+                        stroke="#e2e8f0"
                         strokeWidth="1"
                     />
 
@@ -167,7 +169,7 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                                     y={0}
                                     width={barWidth + 8}
                                     height={chartHeight + 30}
-                                    fill={isHovered ? 'rgba(51, 65, 85, 0.4)' : 'transparent'}
+                                    fill={isHovered ? 'rgba(241, 245, 249, 0.9)' : 'transparent'}
                                     rx={4}
                                 />
 
@@ -179,7 +181,7 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                                         width={barWidth}
                                         height={hMatched}
                                         fill="#10b981"
-                                        rx={1}
+                                        rx={2}
                                     />
                                 )}
 
@@ -191,7 +193,7 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                                         width={barWidth}
                                         height={hAmbiguous}
                                         fill="#f59e0b"
-                                        rx={1}
+                                        rx={2}
                                     />
                                 )}
 
@@ -203,7 +205,7 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                                         width={barWidth}
                                         height={hUnmatched}
                                         fill="#f43f5e"
-                                        rx={1}
+                                        rx={2}
                                     />
                                 )}
 
@@ -214,8 +216,8 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                                         y={yExcluded}
                                         width={barWidth}
                                         height={hExcluded}
-                                        fill="#64748b"
-                                        rx={1}
+                                        fill="#94a3b8"
+                                        rx={2}
                                     />
                                 )}
 
@@ -226,7 +228,7 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                                         y={chartHeight - 4}
                                         width={barWidth}
                                         height={4}
-                                        fill="#475569"
+                                        fill="#cbd5e1"
                                         rx={1}
                                     />
                                 )}
@@ -236,9 +238,10 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
                                     x={x + barWidth / 2}
                                     y={chartHeight + 16}
                                     textAnchor="middle"
-                                    fill={isHovered ? '#f8fafc' : '#94a3b8'}
+                                    fill={isHovered ? '#0f172a' : '#64748b'}
                                     fontSize="10"
                                     fontFamily="monospace"
+                                    fontWeight={isHovered ? '600' : '400'}
                                 >
                                     {point.date.slice(5)}
                                 </text>
@@ -281,4 +284,3 @@ export function RunOutcomeChart({ trend }: RunOutcomeChartProps) {
         </div>
     );
 }
-
