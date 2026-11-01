@@ -8,12 +8,17 @@ import {
     type AuthMiddlewareDeps,
 } from '../auth/middleware';
 import { CopilotService, type CopilotServiceDeps } from '../services/copilot/copilot.service';
+import {
+    getCopilotSessionRepository,
+    type CopilotSessionRepository,
+} from '../services/copilot/session-repository';
 import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface CopilotRouterDeps {
     service?: CopilotService;
+    sessionRepo?: CopilotSessionRepository;
     authGuard?: RequestHandler;
     merchantGuard?: RequestHandler;
     authDeps?: AuthMiddlewareDeps;
@@ -35,6 +40,20 @@ const AskBodySchema = z.object({
         .optional(),
 });
 
+const CreateSessionSchema = z.object({
+    title: z.string().trim().max(100).optional(),
+});
+
+const UpdateSessionSchema = z.object({
+    title: z.string().trim().min(1).max(100).optional(),
+    archivedAt: z.string().nullable().optional(),
+});
+
+const PaginationQuerySchema = z.object({
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
     const router = Router({ mergeParams: true });
 
@@ -43,6 +62,19 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
         new CopilotService({
             db: (deps.serviceDeps?.db ?? getDB()) as any,
         });
+
+    const getSessionRepo = () => {
+        if (deps.sessionRepo) return deps.sessionRepo;
+        let db: any = deps.serviceDeps?.db;
+        if (!db) {
+            try {
+                db = getDB();
+            } catch {
+                // DB not yet connected or mock unit test
+            }
+        }
+        return getCopilotSessionRepository(db);
+    };
 
     const authGuard = deps.authGuard ?? authenticate(deps.authDeps);
     const merchantGuard = deps.merchantGuard ?? resolveMerchantContext(deps.authDeps);
@@ -56,6 +88,18 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
             (err as any).statusCode = 400;
             throw err;
         }
+    }
+
+    function validateSessionParam(sessionId: string): void {
+        if (!UUID_REGEX.test(sessionId)) {
+            const err = new Error('Invalid sessionId: must be a valid UUID');
+            (err as any).statusCode = 400;
+            throw err;
+        }
+    }
+
+    function getActorId(req: Request): string {
+        return req.auth?.user?.id || (req as any).authenticatedUser?.id || 'operator-user';
     }
 
     // 1. GET /api/merchants/:merchantId/copilot/capabilities
@@ -77,7 +121,236 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
         },
     );
 
-    // 2. POST /api/merchants/:merchantId/copilot/ask
+    // 2. GET /api/merchants/:merchantId/copilot/sessions
+    router.get(
+        '/sessions',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId } = req.params;
+                validateMerchantParam(merchantId);
+
+                const query = PaginationQuerySchema.parse(req.query);
+                const sessionRepo = getSessionRepo();
+                const userId = getActorId(req);
+
+                const result = await sessionRepo.listSessions(merchantId, userId, query.limit, query.cursor);
+                res.status(200).json(result);
+            } catch (err: any) {
+                if (err instanceof z.ZodError) {
+                    res.status(400).json({
+                        error: 'VALIDATION_FAILED',
+                        message: 'Invalid pagination parameters',
+                        details: err.flatten(),
+                    });
+                    return;
+                }
+                console.error('[CopilotRouter:listSessions] Unexpected error:', sanitizeErrorMessage(err));
+                res.status(err.statusCode || 500).json({
+                    error: 'COPILOT_SESSION_ERROR',
+                    message: err.message || 'Failed to list copilot sessions',
+                });
+            }
+        },
+    );
+
+    // 3. POST /api/merchants/:merchantId/copilot/sessions
+    router.post(
+        '/sessions',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId } = req.params;
+                validateMerchantParam(merchantId);
+
+                const body = CreateSessionSchema.parse(req.body || {});
+                const sessionRepo = getSessionRepo();
+                const userId = getActorId(req);
+
+                const session = await sessionRepo.createSession({
+                    merchantId,
+                    userId,
+                    title: body.title,
+                });
+
+                res.status(201).json(session);
+            } catch (err: any) {
+                if (err instanceof z.ZodError) {
+                    res.status(400).json({
+                        error: 'VALIDATION_FAILED',
+                        message: 'Invalid session creation parameters',
+                        details: err.flatten(),
+                    });
+                    return;
+                }
+                console.error('[CopilotRouter:createSession] Unexpected error:', sanitizeErrorMessage(err));
+                res.status(err.statusCode || 500).json({
+                    error: 'COPILOT_SESSION_ERROR',
+                    message: err.message || 'Failed to create copilot session',
+                });
+            }
+        },
+    );
+
+    // 4. GET /api/merchants/:merchantId/copilot/sessions/:sessionId/messages
+    router.get(
+        '/sessions/:sessionId/messages',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId, sessionId } = req.params;
+                validateMerchantParam(merchantId);
+                validateSessionParam(sessionId);
+
+                const query = PaginationQuerySchema.parse(req.query);
+                const sessionRepo = getSessionRepo();
+
+                const session = await sessionRepo.getSession(merchantId, sessionId);
+                if (!session) {
+                    res.status(404).json({
+                        error: 'NOT_FOUND',
+                        message: `Session ${sessionId} not found for this merchant`,
+                    });
+                    return;
+                }
+
+                const result = await sessionRepo.listMessages(merchantId, sessionId, query.limit, query.cursor);
+                res.status(200).json(result);
+            } catch (err: any) {
+                if (err instanceof z.ZodError) {
+                    res.status(400).json({
+                        error: 'VALIDATION_FAILED',
+                        message: 'Invalid pagination parameters',
+                        details: err.flatten(),
+                    });
+                    return;
+                }
+                console.error('[CopilotRouter:listMessages] Unexpected error:', sanitizeErrorMessage(err));
+                res.status(err.statusCode || 500).json({
+                    error: 'COPILOT_SESSION_ERROR',
+                    message: err.message || 'Failed to list session messages',
+                });
+            }
+        },
+    );
+
+    // 5. POST /api/merchants/:merchantId/copilot/sessions/:sessionId/messages
+    router.post(
+        '/sessions/:sessionId/messages',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId, sessionId } = req.params;
+                validateMerchantParam(merchantId);
+                validateSessionParam(sessionId);
+
+                const body = AskBodySchema.parse(req.body);
+                const sessionRepo = getSessionRepo();
+                const service = getService();
+
+                const session = await sessionRepo.getSession(merchantId, sessionId);
+                if (!session) {
+                    res.status(404).json({
+                        error: 'NOT_FOUND',
+                        message: `Session ${sessionId} not found for this merchant`,
+                    });
+                    return;
+                }
+
+                // Retrieve explicit bounded recent context window (max 6 messages = 3 user/assistant turns)
+                const recentTurns = await sessionRepo.getRecentTurnWindow(merchantId, sessionId, 6);
+
+                // Add user message to session
+                const userMessage = await sessionRepo.addMessage({
+                    merchantId,
+                    sessionId,
+                    role: 'user',
+                    content: body.question,
+                    requestId: req.headers['x-correlation-id'] as string,
+                });
+
+                // Generate fresh database-grounded response
+                const result = await service.answerQuestion(merchantId, {
+                    question: body.question,
+                    context: body.context,
+                    recentTurns,
+                });
+
+                // Add assistant response message to session
+                const assistantMessage = await sessionRepo.addMessage({
+                    merchantId,
+                    sessionId,
+                    role: 'assistant',
+                    content: result.answer,
+                    answerPayload: result,
+                    requestId: req.headers['x-correlation-id'] as string,
+                });
+
+                res.status(200).json({
+                    userMessage,
+                    assistantMessage,
+                    result,
+                });
+            } catch (err: any) {
+                if (err instanceof z.ZodError) {
+                    res.status(400).json({
+                        error: 'VALIDATION_FAILED',
+                        message: 'Invalid message request body',
+                        details: err.flatten(),
+                    });
+                    return;
+                }
+                console.error('[CopilotRouter:addMessage] Unexpected error:', sanitizeErrorMessage(err));
+                res.status(err.statusCode || 500).json({
+                    error: 'COPILOT_SESSION_ERROR',
+                    message: err.message || 'Failed to post message to session',
+                });
+            }
+        },
+    );
+
+    // 6. PATCH /api/merchants/:merchantId/copilot/sessions/:sessionId
+    router.patch(
+        '/sessions/:sessionId',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId, sessionId } = req.params;
+                validateMerchantParam(merchantId);
+                validateSessionParam(sessionId);
+
+                const body = UpdateSessionSchema.parse(req.body);
+                const sessionRepo = getSessionRepo();
+
+                const updated = await sessionRepo.updateSession(merchantId, sessionId, body);
+                if (!updated) {
+                    res.status(404).json({
+                        error: 'NOT_FOUND',
+                        message: `Session ${sessionId} not found for this merchant`,
+                    });
+                    return;
+                }
+
+                res.status(200).json(updated);
+            } catch (err: any) {
+                if (err instanceof z.ZodError) {
+                    res.status(400).json({
+                        error: 'VALIDATION_FAILED',
+                        message: 'Invalid session update parameters',
+                        details: err.flatten(),
+                    });
+                    return;
+                }
+                console.error('[CopilotRouter:updateSession] Unexpected error:', sanitizeErrorMessage(err));
+                res.status(err.statusCode || 500).json({
+                    error: 'COPILOT_SESSION_ERROR',
+                    message: err.message || 'Failed to update copilot session',
+                });
+            }
+        },
+    );
+
+    // 7. POST /api/merchants/:merchantId/copilot/ask (Legacy stateless endpoint maintained for backward compatibility)
     router.post(
         '/ask',
         requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),

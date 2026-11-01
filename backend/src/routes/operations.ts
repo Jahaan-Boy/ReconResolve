@@ -123,5 +123,22 @@ export function createOperationsRouter(deps: OperationsRouterDeps = {}): Router 
         },
     );
 
+    // 4. GET /api/merchants/:merchantId/operations/events/:eventId/timeline
+    // Returns full sanitized trace across Webhook -> Outbox -> ProviderTxn -> ReconRun -> Exception/Match
+    router.get(
+        '/events/:eventId/timeline',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId, eventId } = req.params;
+                const service = getService();
+                const timeline = await service.getEventTimeline(merchantId, eventId);
+                res.status(200).json(timeline);
+            } catch (err) {
+                handleRouteError(res, err);
+            }
+        },
+    );
+
     return router;
 }

@@ -56,3 +56,76 @@ export interface PortfolioIntelligenceResult {
     readonly priorityFormulaVersion: string;
     readonly dataQualityNotes: string[];
 }
+
+export type TrendWindow = '7d' | '30d' | '90d';
+
+export interface RunSeriesItem {
+    readonly id: string;
+    readonly createdAt: string;
+    readonly windowStart: string;
+    readonly windowEnd: string;
+    readonly status: string;
+    readonly totalConsidered: number;
+    readonly matchedCount: number;
+    readonly unmatchedCount: number;
+    readonly ambiguousCount: number;
+    readonly excludedCount: number;
+    readonly matchRate: number;
+}
+
+export interface MatchRateDelta {
+    readonly currentMatchRate: number | null;
+    readonly previousMatchRate: number | null;
+    readonly delta: number | null;
+    readonly direction: 'improving' | 'worsening' | 'stable' | 'insufficient_history';
+}
+
+export interface ExceptionMovement {
+    readonly newInflowCount: number;
+    readonly resolvedOutflowCount: number;
+    readonly netChange: number;
+    readonly countsByStatus: Record<string, number>;
+    readonly countsByType: Record<string, number>;
+}
+
+export interface RecurringPatternTrend {
+    readonly groupKey: string;
+    readonly label: string;
+    readonly description: string;
+    readonly filterType: ExceptionType;
+    readonly recurrenceCount: number;
+    readonly status: 'NEW' | 'RECURRING' | 'IMPROVING' | 'WORSENING';
+    readonly exposureByCurrency: Record<string, CurrencyExposure>;
+}
+
+export interface AgingBucketItem {
+    readonly count: number;
+    readonly exposureByCurrency: Record<string, CurrencyExposure>;
+}
+
+export interface AgingBuckets {
+    readonly lessThan24h: AgingBucketItem;
+    readonly oneToSevenDays: AgingBucketItem;
+    readonly sevenToThirtyDays: AgingBucketItem;
+    readonly moreThanThirtyDays: AgingBucketItem;
+    readonly oldestUnresolved: {
+        readonly id: string;
+        readonly ageDays: number;
+        readonly type: ExceptionType;
+        readonly currency: string;
+        readonly formattedExposure: string;
+    } | null;
+}
+
+export interface PortfolioTrendsResult {
+    readonly merchantId: string;
+    readonly window: TrendWindow;
+    readonly generatedAt: string;
+    readonly runSeries: RunSeriesItem[];
+    readonly matchRateDelta: MatchRateDelta;
+    readonly exceptionMovement: ExceptionMovement;
+    readonly exposureByCurrency: Record<string, CurrencyExposure>;
+    readonly recurringPatterns: RecurringPatternTrend[];
+    readonly agingBuckets: AgingBuckets;
+    readonly dataLimitations: string[];
+}

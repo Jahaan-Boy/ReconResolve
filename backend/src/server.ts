@@ -11,11 +11,29 @@ async function main(): Promise<void> {
     const server = http.createServer(app);
 
     const shutdown = async (signal: string): Promise<void> => {
-        console.log(`[shutdown] ${signal} received — closing server…`);
+        console.log(`[shutdown] ${signal} received — initiating graceful shutdown…`);
+
+        // Bounded shutdown timer: force exit if cleanup hangs
+        const forceExitTimer = setTimeout(() => {
+            console.error('[shutdown] Forced shutdown timeout (10s) elapsed. Terminating process.');
+            process.exit(1);
+        }, 10000);
+        forceExitTimer.unref();
+
         server.close(async () => {
             try {
+                // 1. Disconnect cache service
+                try {
+                    const { getCacheService } = await import('./services/cache/cache-factory');
+                    const cache = getCacheService();
+                    await cache.disconnect();
+                } catch {
+                    // Non-fatal cache disconnect
+                }
+
+                // 2. Close PostgreSQL pool
                 await closeDB();
-                console.log('[shutdown] Server and database pool closed cleanly. Exiting.');
+                console.log('[shutdown] Server, cache, and database pool closed cleanly. Exiting.');
                 process.exit(0);
             } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);

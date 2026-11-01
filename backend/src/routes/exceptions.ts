@@ -19,6 +19,7 @@ import {
     type InvestigationRouterDeps,
 } from './investigations';
 import { sanitizeErrorMessage } from '../services/outbox/error-sanitizer';
+import { invalidateMerchantIntelligenceCache } from '../services/cache/intelligence-cache';
 
 export interface ExceptionRouterDeps {
     service?: ExceptionLifecycleService;
@@ -220,6 +221,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
             const context = resolveContext(req);
 
             const result = await service.resolve(merchantId, exceptionId, body, context);
+            void invalidateMerchantIntelligenceCache(merchantId);
             res.status(200).json(result);
         } catch (err) {
             handleRouteError(res, err);
@@ -237,6 +239,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
             const context = resolveContext(req);
 
             const result = await service.reopen(merchantId, exceptionId, body, context);
+            void invalidateMerchantIntelligenceCache(merchantId);
             res.status(200).json(result);
         } catch (err) {
             handleRouteError(res, err);
@@ -254,6 +257,7 @@ export function createExceptionRouter(deps: ExceptionRouterDeps = {}): Router {
             const context = resolveContext(req);
 
             const result = await service.dismiss(merchantId, exceptionId, body, context);
+            void invalidateMerchantIntelligenceCache(merchantId);
             res.status(200).json(result);
         } catch (err) {
             handleRouteError(res, err);
