@@ -13,6 +13,8 @@ import { OrderIngestionDialog } from './OrderIngestionDialog';
 import { ReconciliationDialog } from './ReconciliationDialog';
 import { ReconciliationDashboardPage } from '@/features/dashboard/ReconciliationDashboardPage';
 import { AuthModal } from '@/features/auth/AuthModal';
+import { CopilotDrawer } from './CopilotDrawer';
+import { OperationsTimelineModal } from './OperationsTimelineModal';
 import { useConsoleKeyboardShortcuts } from '@/hooks/useConsoleKeyboardShortcuts';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
 import {
@@ -60,6 +62,9 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
     const [isReconModalOpen, setIsReconModalOpen] = useState(false);
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+    const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+    const [timelineIdentifier, setTimelineIdentifier] = useState<string | null>(null);
     const [selectedReconRunId, setSelectedReconRunId] = useState<string | null>(null);
     const [consoleView, setConsoleView] = useState<ConsoleView>('dashboard');
 
@@ -597,6 +602,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 onOpenOrderIngestion={() => setIsOrderModalOpen(true)}
                 activeView={consoleView}
                 onChangeView={setConsoleView}
+                onOpenCopilot={() => setIsCopilotOpen(true)}
                 onOpenReconciliation={() => {
                     setSelectedReconRunId(null);
                     setIsReconModalOpen(true);
@@ -687,6 +693,13 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                                 setSelectedReconRunId(runId);
                                 setIsReconModalOpen(true);
                             }}
+                            onAskCopilot={(_excId) => {
+                                setIsCopilotOpen(true);
+                            }}
+                            onViewTimeline={(identifier) => {
+                                setTimelineIdentifier(identifier);
+                                setIsTimelineOpen(true);
+                            }}
                         />
                     </div>
                 </div>
@@ -733,6 +746,40 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 operatorRole={operatorContext.role}
                 initialRunId={selectedReconRunId}
             />
+
+            {/* FlowOps Copilot Drawer */}
+            <CopilotDrawer
+                isOpen={isCopilotOpen}
+                onClose={() => setIsCopilotOpen(false)}
+                merchantId={merchantId}
+                activeExceptionId={selectedId}
+                onSelectEvidence={(type, id) => {
+                    if (type === 'exc') {
+                        setSelectedId(id);
+                        setConsoleView('workbench');
+                    } else if (type === 'run') {
+                        setSelectedReconRunId(id);
+                        setIsReconModalOpen(true);
+                    } else if (type === 'ptxn' || type === 'mord') {
+                        setTimelineIdentifier(id);
+                        setIsTimelineOpen(true);
+                    }
+                }}
+            />
+
+            {/* Operations Timeline Modal */}
+            {timelineIdentifier && (
+                <OperationsTimelineModal
+                    isOpen={isTimelineOpen}
+                    onClose={() => {
+                        setIsTimelineOpen(false);
+                        setTimelineIdentifier(null);
+                    }}
+                    merchantId={merchantId}
+                    identifier={timelineIdentifier}
+                    onReplaySuccess={() => addToast('success', 'Outbox event queued for replay')}
+                />
+            )}
 
             {/* Toast Container */}
             <div

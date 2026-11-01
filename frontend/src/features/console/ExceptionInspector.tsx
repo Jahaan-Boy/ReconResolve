@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Check, Copy, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Check, Copy, FileSpreadsheet, Bot, Activity } from 'lucide-react';
 import type { ExceptionAction, ExceptionDetail, OperatorContext } from '@/services/api/types';
 import { StatusBadge } from '@/components/fintech/StatusBadge';
 import { ExceptionTypeBadge } from '@/components/fintech/ExceptionTypeBadge';
@@ -25,6 +25,8 @@ interface ExceptionInspectorProps {
     actionInProgress: boolean;
     onCloseInspector?: () => void;
     onInspectRun?: (runId: string) => void;
+    onAskCopilot?: (exceptionId: string) => void;
+    onViewTimeline?: (identifier: string) => void;
 }
 
 export function ExceptionInspector({
@@ -39,6 +41,8 @@ export function ExceptionInspector({
     actionInProgress,
     onCloseInspector,
     onInspectRun,
+    onAskCopilot,
+    onViewTimeline,
 }: ExceptionInspectorProps) {
     const [copied, setCopied] = useState(false);
 
@@ -143,11 +147,32 @@ export function ExceptionInspector({
                     </div>
                 </div>
 
-                {/* State Machine Action Bar */}
+                {/* State Machine Action Bar & Operations Tools */}
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-xs font-medium text-slate-500">
-                        Operational Actions:
-                    </span>
+                    <div className="flex items-center gap-2">
+                        {onAskCopilot && (
+                            <button
+                                type="button"
+                                onClick={() => onAskCopilot(exception.id)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                                title="Ask FlowOps Copilot about this break"
+                            >
+                                <Bot className="size-3.5 text-emerald-600" />
+                                <span>Ask Copilot</span>
+                            </button>
+                        )}
+                        {onViewTimeline && (exception.linkedProviderTransaction?.providerTxnId || exception.linkedMerchantOrder?.externalOrderId) && (
+                            <button
+                                type="button"
+                                onClick={() => onViewTimeline(exception.linkedProviderTransaction?.providerTxnId || exception.linkedMerchantOrder?.externalOrderId || exception.id)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                                title="View 6-stage webhook-to-outbox operations timeline"
+                            >
+                                <Activity className="size-3.5 text-indigo-600" />
+                                <span>Timeline</span>
+                            </button>
+                        )}
+                    </div>
                     <ExceptionActionBar
                         status={exception.status}
                         disabled={actionInProgress}

@@ -588,6 +588,11 @@ export interface DashboardApiClient {
         filter?: DashboardDateRangeFilter,
         signal?: AbortSignal,
     ): Promise<DashboardSummaryResponse>;
+    getPortfolioTrends?(
+        merchantId: string,
+        preset?: '7d' | '30d' | '90d',
+        signal?: AbortSignal,
+    ): Promise<PortfolioTrendsResponse>;
 }
 
 export interface DeadLetterRecord {
@@ -630,5 +635,100 @@ export interface OperationsSummary {
 
 export interface OperationsApiClient {
     getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary>;
-    replayOutboxEvent(merchantId: string, eventId: string): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }>;
+    replayOutboxEvent(
+        merchantId: string,
+        eventId: string,
+    ): Promise<{ outcome: string; eventId: string; status: string; message?: string }>;
+    getEventTimeline?(
+        merchantId: string,
+        identifier: string,
+        signal?: AbortSignal,
+    ): Promise<OperationsTimelineResponse>;
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio Trends & Operations Timeline Types (Day 31)
+// ---------------------------------------------------------------------------
+
+export interface IncompleteRunSummary {
+    runId: string;
+    status: string;
+    createdAt: string;
+    failureReason: string | null;
+}
+
+export interface RunTrendDataPoint {
+    runId: string;
+    createdAt: string;
+    status: string;
+    rulesetVersion: string;
+    totalConsidered: number;
+    eligibleCount: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    ambiguousCount: number;
+    excludedCount: number;
+    matchRatePercentage: number | null;
+}
+
+export interface LifecycleFlowSummary {
+    inflowCount: number;
+    outflowCount: number;
+    resolvedCount: number;
+    dismissedCount: number;
+    reopenedCount: number;
+    netActiveDelta: number;
+}
+
+export interface RecurringPatternCohort {
+    fingerprint: string;
+    type: string;
+    reasonCode: string;
+    currency: string;
+    count: number;
+    totalAmountMinor: string;
+}
+
+export interface CurrencyExposure {
+    currency: string;
+    totalAmountMinor: string;
+    count: number;
+    decimalPlaces: number;
+}
+
+export interface PortfolioTrendsResponse {
+    merchantId: string;
+    generatedAt: string;
+    status: 'READY' | 'INSUFFICIENT_HISTORY' | 'UNAVAILABLE';
+    insufficientReason?: string;
+    window: {
+        preset: '7d' | '30d' | '90d';
+        windowStart: string;
+        windowEnd: string;
+    };
+    totalRunsConsidered: number;
+    completedRunsCount: number;
+    incompleteRuns: IncompleteRunSummary[];
+    trendPoints: RunTrendDataPoint[];
+    lifecycleFlow: LifecycleFlowSummary;
+    recurringPatterns: RecurringPatternCohort[];
+    currencyExposures: Record<string, CurrencyExposure>;
+}
+
+export interface OperationsTimelineStage {
+    stage: string;
+    label: string;
+    status: 'COMPLETED' | 'FAILED' | 'PENDING' | 'PROCESSING' | 'NOT_REACHED' | 'MISSING';
+    timestamp: string | null;
+    evidenceId: string | null;
+    summary: string;
+    data?: Record<string, unknown>;
+}
+
+export interface OperationsTimelineResponse {
+    merchantId: string;
+    identifier: string;
+    stages: OperationsTimelineStage[];
+    pipelineOutcome: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS' | 'PARTIAL';
+    summary: string;
 }

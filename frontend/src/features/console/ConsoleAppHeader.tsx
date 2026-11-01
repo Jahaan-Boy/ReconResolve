@@ -12,6 +12,7 @@ import {
     GitCommit,
     LayoutDashboard,
     ShieldAlert,
+    Bot,
 } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
@@ -35,6 +36,7 @@ interface ConsoleAppHeaderProps {
     onNavigateLanding: () => void;
     onOpenOrderIngestion?: () => void;
     onOpenReconciliation?: () => void;
+    onOpenCopilot?: () => void;
     activeView?: ConsoleView;
     onChangeView?: (view: ConsoleView) => void;
 }
@@ -52,6 +54,7 @@ export function ConsoleAppHeader({
     onNavigateLanding,
     onOpenOrderIngestion,
     onOpenReconciliation,
+    onOpenCopilot,
     activeView = 'workbench',
     onChangeView,
 }: ConsoleAppHeaderProps) {
@@ -191,6 +194,19 @@ export function ConsoleAppHeader({
                         >
                             <GitCommit className="size-3.5" />
                             <span>Reconciliation</span>
+                        </button>
+                    )}
+
+                    {/* Copilot Assistant Trigger */}
+                    {onOpenCopilot && (
+                        <button
+                            type="button"
+                            onClick={onOpenCopilot}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50/80 px-2.5 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100 transition-colors shadow-2xs"
+                            title="Open FlowOps Copilot"
+                        >
+                            <Bot className="size-3.5 text-purple-600" />
+                            <span>Copilot</span>
                         </button>
                     )}
 

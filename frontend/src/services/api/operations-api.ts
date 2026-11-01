@@ -1,5 +1,12 @@
 import { ApiClientError } from './types';
-import type { OperationsApiClient, OperationsSummary } from './types';
+import type {
+    OperationsApiClient,
+    OperationsSummary,
+    OperationsTimelineResponse,
+    OperationsTimelineStage,
+} from './types';
+
+export type { OperationsTimelineResponse, OperationsTimelineStage };
 
 export class HttpOperationsApiClient implements OperationsApiClient {
     private readonly baseUrl: string;
@@ -36,7 +43,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     async replayOutboxEvent(
         merchantId: string,
         eventId: string,
-    ): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }> {
+    ): Promise<{ outcome: string; eventId: string; status: string; message?: string }> {
         const response = await fetch(
             `${this.baseUrl}/api/merchants/${merchantId}/operations/outbox/${eventId}/replay`,
             {
@@ -55,6 +62,38 @@ export class HttpOperationsApiClient implements OperationsApiClient {
             throw new ApiClientError(
                 typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
                 typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to replay outbox event',
+                response.status,
+                errorBody['details'],
+            );
+        }
+
+        return await response.json();
+    }
+
+    async getEventTimeline(
+        merchantId: string,
+        identifier: string,
+        signal?: AbortSignal,
+    ): Promise<OperationsTimelineResponse> {
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${merchantId}/operations/timeline/${encodeURIComponent(identifier)}`,
+            {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+            },
+        );
+
+        if (!response.ok) {
+            let errorBody: Record<string, unknown> = {};
+            try {
+                errorBody = (await response.json()) as Record<string, unknown>;
+            } catch {
+                // non-json
+            }
+            throw new ApiClientError(
+                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
+                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch operations timeline',
                 response.status,
                 errorBody['details'],
             );
@@ -95,11 +134,33 @@ export class MockOperationsApiClient implements OperationsApiClient {
     async replayOutboxEvent(
         _merchantId: string,
         eventId: string,
-    ): Promise<{ outcome: 'replayed'; eventId: string; status: 'PENDING' }> {
+    ): Promise<{ outcome: string; eventId: string; status: string; message?: string }> {
         return {
             outcome: 'replayed',
             eventId,
             status: 'PENDING',
+            message: 'Outbox event successfully queued for processing',
+        };
+    }
+
+    async getEventTimeline(
+        merchantId: string,
+        identifier: string,
+    ): Promise<OperationsTimelineResponse> {
+        const now = new Date().toISOString();
+        return {
+            merchantId,
+            identifier,
+            pipelineOutcome: 'SUCCESS',
+            summary: 'Operations timeline evaluated: 6/6 stages completed (SUCCESS).',
+            stages: [
+                { stage: 'WEBHOOK_RECEIVED', label: 'Webhook Received', status: 'COMPLETED', timestamp: now, evidenceId: 'wh-mock-01', summary: 'PayPal webhook received' },
+                { stage: 'SIGNATURE_VERIFIED', label: 'Signature Verified', status: 'COMPLETED', timestamp: now, evidenceId: 'sig-mock-01', summary: 'Cryptographic signature verified' },
+                { stage: 'INBOX_STORED', label: 'Inbox Stored', status: 'COMPLETED', timestamp: now, evidenceId: 'inbox-mock-01', summary: 'Payload persisted in database' },
+                { stage: 'OUTBOX_ENQUEUED', label: 'Outbox Enqueued', status: 'COMPLETED', timestamp: now, evidenceId: 'outbox-mock-01', summary: 'Transactional outbox event created' },
+                { stage: 'WORKER_PROCESSED', label: 'Worker Processed', status: 'COMPLETED', timestamp: now, evidenceId: 'worker-mock-01', summary: 'Worker dispatched event (attempt 1/5)' },
+                { stage: 'LEDGER_RECORDED', label: 'Ledger Recorded', status: 'COMPLETED', timestamp: now, evidenceId: 'ledger-mock-01', summary: 'Transaction recorded in ledger' },
+            ],
         };
     }
 }
