@@ -18,12 +18,49 @@ export interface OutboxQueueMetrics {
     readonly dispatchedCount: number;
     readonly deadLetterCount: number;
     readonly oldestPendingAgeMs: number;
+    readonly retriedCount?: number;
+    readonly terminallyFailedCount?: number;
+}
+
+export interface WebhookPipelineMetrics {
+    readonly totalReceivedCount: number;
+    readonly processedCount: number;
+    readonly processingCount: number;
+    readonly failedCount: number;
+    readonly receivedPendingCount: number;
+    readonly verificationFailures: {
+        readonly status: 'unavailable';
+        readonly reason: string;
+        readonly requiredInstrumentation: string;
+    };
+}
+
+export interface BreakBreakdownMetrics {
+    readonly unmatchedCount: number;
+    readonly ambiguousCount: number;
+    readonly discrepancyCount: number;
 }
 
 export interface ReconciliationHealthMetrics {
     readonly latestRunStatus: string | null;
     readonly failedRunsCount: number;
     readonly recentAmbiguousCount: number;
+    readonly totalRunsCount?: number;
+    readonly completedRunsCount?: number;
+    readonly runningRunsCount?: number;
+    readonly breakBreakdown?: BreakBreakdownMetrics;
+}
+
+export interface SystemReadinessMetrics {
+    readonly database: {
+        readonly status: 'connected' | 'degraded' | 'disconnected';
+        readonly latencyMs?: number;
+    };
+    readonly cache: {
+        readonly provider: string;
+        readonly status: 'connected' | 'degraded' | 'fallback_active';
+        readonly fallbackMode: string;
+    };
 }
 
 export interface InvestigationHealthMetrics {
@@ -41,6 +78,8 @@ export interface OperationsSummaryResult {
     readonly reconciliation: ReconciliationHealthMetrics;
     readonly investigations: InvestigationHealthMetrics;
     readonly deadLetterQueue: DeadLetterRecord[];
+    readonly webhooks?: WebhookPipelineMetrics;
+    readonly readiness?: SystemReadinessMetrics;
     readonly cacheHealth?: {
         readonly provider: string;
         readonly connected: boolean;

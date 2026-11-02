@@ -19,12 +19,13 @@ import {
 } from 'lucide-react';
 import { operationsApiClient } from '@/services/api/operations-api';
 import { connectionsApiClient } from '@/services/api/connections-api';
-import type {
-    ProviderConnectionSummary as ConnectionItem,
-    OperationsSummary,
-    DeadLetterRecord as OutboxEventSummary,
-    WebhookEventRecord as WebhookEventItem,
-    EventTimelineResult,
+import {
+    ApiClientError,
+    type ProviderConnectionSummary as ConnectionItem,
+    type OperationsSummary,
+    type DeadLetterRecord as OutboxEventSummary,
+    type WebhookEventRecord as WebhookEventItem,
+    type EventTimelineResult,
 } from '@/services/api/types';
 
 export interface IntegrationsOperationsPageProps {
@@ -143,16 +144,37 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
                     message: res.reason || 'The event is ineligible for replay based on server-side criteria.',
                 });
             }
-            setReplayConfirmItem(null);
-            loadOperationsSummary(merchantId);
         } catch (err: unknown) {
-            setReplayFeedback({
-                type: 'error',
-                title: 'Replay Request Failed',
-                message: err instanceof Error ? err.message : 'Unexpected network or authorization error',
-            });
+            const isConflict =
+                (err instanceof ApiClientError && err.statusCode === 409) ||
+                (typeof err === 'object' && err !== null && 'statusCode' in err && (err as any).statusCode === 409);
+            const isNotFound =
+                (err instanceof ApiClientError && err.statusCode === 404) ||
+                (typeof err === 'object' && err !== null && 'statusCode' in err && (err as any).statusCode === 404);
+
+            if (isConflict) {
+                setReplayFeedback({
+                    type: 'info',
+                    title: 'Replay Conflict (409) — Already In Flight or Limit Reached',
+                    message: err instanceof Error ? err.message : 'The event was concurrently replayed, is already processing, or reached the maximum attempt ceiling (5 attempts).',
+                });
+            } else if (isNotFound) {
+                setReplayFeedback({
+                    type: 'error',
+                    title: 'Event Not Found (404)',
+                    message: err instanceof Error ? err.message : 'Outbox event was not found or access was denied for this merchant.',
+                });
+            } else {
+                setReplayFeedback({
+                    type: 'error',
+                    title: 'Replay Request Failed',
+                    message: err instanceof Error ? err.message : 'Unexpected network or authorization error',
+                });
+            }
         } finally {
             setReplayingEventId(null);
+            setReplayConfirmItem(null);
+            loadOperationsSummary(merchantId);
         }
     };
 
@@ -480,7 +502,7 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
                                 </div>
                             </div>
                             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 shadow-2xs">
-                                <span className="text-slate-400 text-[11px] font-medium">Processing</span>
+                                <span className="text-slate-400 text-[11px] font-medium">Processing / In-Flight</span>
                                 <div className="text-xl font-bold font-mono text-blue-700 mt-1">
                                     {operationsSummary.outbox.processingCount}
                                 </div>
@@ -498,6 +520,82 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
                                 </div>
                             </div>
                         </div>
+
+                        {/* Extended Pipeline Stage Metrics */}
+                        {operationsSummary.webhooks && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-3.5 space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-semibold text-slate-800">Stage 1: Webhook Intake</span>
+                                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            {operationsSummary.webhooks.totalReceivedCount} Total
+                                        </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                                        <div className="flex justify-between">
+                                            <span>Processed:</span>
+                                            <span className="font-mono text-emerald-700 font-semibold">{operationsSummary.webhooks.processedCount}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Pending Ingestion:</span>
+                                            <span className="font-mono text-slate-700">{operationsSummary.webhooks.receivedPendingCount}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60" title={operationsSummary.webhooks.verificationFailures.reason}>
+                                            <span>Verification Failures:</span>
+                                            <span className="font-mono font-medium text-slate-500">Rejected at Edge</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-3.5 space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-semibold text-slate-800">Stage 2: Outbox Retries</span>
+                                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">
+                                            Ceiling: 5 Attempts
+                                        </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                                        <div className="flex justify-between">
+                                            <span>Retried in Flight:</span>
+                                            <span className="font-mono text-amber-700 font-semibold">{operationsSummary.outbox.retriedCount ?? 0}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Terminally Failed (DLQ):</span>
+                                            <span className="font-mono text-rose-700 font-semibold">{operationsSummary.outbox.terminallyFailedCount ?? operationsSummary.outbox.deadLetterCount}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60">
+                                            <span>Oldest Pending Age:</span>
+                                            <span className="font-mono text-slate-600 font-medium">
+                                                {operationsSummary.outbox.oldestPendingAgeMs > 0 ? `${Math.round(operationsSummary.outbox.oldestPendingAgeMs / 1000)}s` : '0s'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-3.5 space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-semibold text-slate-800">Stage 3: Reconciliation Breaks</span>
+                                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                                            {operationsSummary.reconciliation.totalRunsCount ?? 0} Runs
+                                        </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                                        <div className="flex justify-between">
+                                            <span>Missing Counterparts:</span>
+                                            <span className="font-mono text-amber-700 font-semibold">{operationsSummary.reconciliation.breakBreakdown?.unmatchedCount ?? 0}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Ambiguous Matches:</span>
+                                            <span className="font-mono text-orange-700 font-semibold">{operationsSummary.reconciliation.breakBreakdown?.ambiguousCount ?? operationsSummary.reconciliation.recentAmbiguousCount}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60">
+                                            <span>Amount/Status Breaks:</span>
+                                            <span className="font-mono text-slate-600 font-medium">{operationsSummary.reconciliation.breakBreakdown?.discrepancyCount ?? 0}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Dead Letter Queue Table */}
                         <div className="space-y-2 pt-2">
@@ -536,8 +634,8 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
                                                         {dlq.eventType}
                                                     </td>
                                                     <td className="py-2.5 px-3 font-mono">
-                                                        <span className={dlq.attemptCount >= 10 ? 'text-rose-600 font-bold' : 'text-amber-700 font-semibold'}>
-                                                            {dlq.attemptCount} / 10
+                                                        <span className={dlq.attemptCount >= 5 ? 'text-rose-600 font-bold' : 'text-amber-700 font-semibold'}>
+                                                            {dlq.attemptCount} / 5
                                                         </span>
                                                     </td>
                                                     <td className="py-2.5 px-3 text-rose-700 font-mono text-[11px] font-semibold">

@@ -30,17 +30,21 @@ export interface OperationsServiceDb {
         count(args: any): Promise<number>;
     };
     webhookEvent?: {
+        count?(args: any): Promise<number>;
         findFirst?(args: any): Promise<any>;
         findMany(args: any): Promise<any[]>;
     };
     providerTransaction?: {
         findFirst(args: any): Promise<any>;
+        count?(args: any): Promise<number>;
     };
     reconciliationException?: {
-        findFirst(args: any): Promise<any>;
+        findFirst?(args: any): Promise<any>;
+        count?(args: any): Promise<number>;
     };
     reconciliationMatch?: {
-        findFirst(args: any): Promise<any>;
+        findFirst?(args: any): Promise<any>;
+        count?(args: any): Promise<number>;
     };
 }
 
@@ -95,18 +99,41 @@ export class OperationsService {
             processingOutboxCount,
             failedOutboxCount,
             dispatchedOutboxCount,
+            retriedOutboxCount,
+            terminallyFailedOutboxCount,
             oldestPendingRecord,
             deadLetterRows,
             latestRun,
+            totalRunsCount,
+            completedRunsCount,
             failedRunsCount,
+            runningRunsCount,
             ambiguousAgg,
             totalInvestigationsCount,
             failedInvestigationsCount,
+            totalWebhooksCount,
+            processedWebhooksCount,
+            processingWebhooksCount,
+            failedWebhooksCount,
+            receivedPendingWebhooksCount,
+            unmatchedExceptionsCount,
+            ambiguousExceptionsCount,
+            discrepancyExceptionsCount,
         ] = await Promise.all([
             this.db.outboxEvent.count({ where: { merchantId, status: 'PENDING' } }),
             this.db.outboxEvent.count({ where: { merchantId, status: 'PROCESSING' } }),
             this.db.outboxEvent.count({ where: { merchantId, status: 'FAILED' } }),
             this.db.outboxEvent.count({ where: { merchantId, status: 'DISPATCHED' } }),
+            this.db.outboxEvent
+                .count({
+                    where: { merchantId, status: { in: ['PENDING', 'PROCESSING'] }, attemptCount: { gt: 0 } },
+                })
+                .catch(() => 0),
+            this.db.outboxEvent
+                .count({
+                    where: { merchantId, status: 'FAILED', attemptCount: { gte: 5 } },
+                })
+                .catch(() => 0),
             this.db.outboxEvent.findFirst({
                 where: { merchantId, status: 'PENDING' },
                 orderBy: { createdAt: 'asc' },
@@ -132,18 +159,43 @@ export class OperationsService {
                 orderBy: { createdAt: 'desc' },
                 select: { id: true, status: true, completedAt: true, createdAt: true },
             }),
-            this.db.reconciliationRun.count({
-                where: { merchantId, status: 'FAILED' },
-            }),
+            this.db.reconciliationRun.count({ where: { merchantId } }).catch(() => 0),
+            this.db.reconciliationRun.count({ where: { merchantId, status: 'COMPLETED' } }).catch(() => 0),
+            this.db.reconciliationRun.count({ where: { merchantId, status: 'FAILED' } }),
+            this.db.reconciliationRun.count({ where: { merchantId, status: 'RUNNING' } }).catch(() => 0),
             this.db.reconciliationRun.aggregate({
                 where: { merchantId },
                 _sum: { ambiguousCount: true },
             }),
-            this.db.exceptionInvestigation
-                ? this.db.exceptionInvestigation.count({ where: { merchantId } })
+            this.db.exceptionInvestigation && typeof this.db.exceptionInvestigation.count === 'function'
+                ? this.db.exceptionInvestigation.count({ where: { merchantId } }).catch(() => 0)
                 : Promise.resolve(0),
-            this.db.exceptionInvestigation
-                ? this.db.exceptionInvestigation.count({ where: { merchantId, status: 'FAILED' } })
+            this.db.exceptionInvestigation && typeof this.db.exceptionInvestigation.count === 'function'
+                ? this.db.exceptionInvestigation.count({ where: { merchantId, status: 'FAILED' } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.webhookEvent && typeof this.db.webhookEvent.count === 'function'
+                ? this.db.webhookEvent.count({ where: { merchantId } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.webhookEvent && typeof this.db.webhookEvent.count === 'function'
+                ? this.db.webhookEvent.count({ where: { merchantId, processingStatus: 'PROCESSED' } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.webhookEvent && typeof this.db.webhookEvent.count === 'function'
+                ? this.db.webhookEvent.count({ where: { merchantId, processingStatus: 'PROCESSING' } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.webhookEvent && typeof this.db.webhookEvent.count === 'function'
+                ? this.db.webhookEvent.count({ where: { merchantId, processingStatus: 'FAILED' } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.webhookEvent && typeof this.db.webhookEvent.count === 'function'
+                ? this.db.webhookEvent.count({ where: { merchantId, processingStatus: 'RECEIVED' } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.reconciliationException && typeof this.db.reconciliationException.count === 'function'
+                ? this.db.reconciliationException.count({ where: { merchantId, type: 'MISSING_MERCHANT_COUNTERPART' } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.reconciliationException && typeof this.db.reconciliationException.count === 'function'
+                ? this.db.reconciliationException.count({ where: { merchantId, type: 'AMBIGUOUS_MATCH' } }).catch(() => 0)
+                : Promise.resolve(0),
+            this.db.reconciliationException && typeof this.db.reconciliationException.count === 'function'
+                ? this.db.reconciliationException.count({ where: { merchantId, type: { in: ['AMOUNT_MISMATCH', 'STATUS_DISCREPANCY'] } } }).catch(() => 0)
                 : Promise.resolve(0),
         ]);
 
@@ -210,15 +262,47 @@ export class OperationsService {
                 dispatchedCount: dispatchedOutboxCount,
                 deadLetterCount: failedOutboxCount,
                 oldestPendingAgeMs,
+                retriedCount: retriedOutboxCount,
+                terminallyFailedCount: terminallyFailedOutboxCount,
+            },
+            webhooks: {
+                totalReceivedCount: totalWebhooksCount,
+                processedCount: processedWebhooksCount,
+                processingCount: processingWebhooksCount,
+                failedCount: failedWebhooksCount,
+                receivedPendingCount: receivedPendingWebhooksCount,
+                verificationFailures: {
+                    status: 'unavailable',
+                    reason: 'Unverified PayPal signatures are rejected at HTTP ingress prior to database persistence to protect system stability.',
+                    requiredInstrumentation: 'Edge gateway logging or Prometheus counter (http_requests_total{status="400",error="INVALID_SIGNATURE"}).',
+                },
             },
             reconciliation: {
                 latestRunStatus: latestRun?.status ?? null,
                 failedRunsCount,
                 recentAmbiguousCount: ambiguousAgg?._sum?.ambiguousCount ?? 0,
+                totalRunsCount,
+                completedRunsCount,
+                runningRunsCount,
+                breakBreakdown: {
+                    unmatchedCount: unmatchedExceptionsCount,
+                    ambiguousCount: ambiguousExceptionsCount,
+                    discrepancyCount: discrepancyExceptionsCount,
+                },
             },
             investigations: {
                 totalInvestigationsCount,
                 failedInvestigationsCount,
+            },
+            readiness: {
+                database: {
+                    status: 'connected',
+                },
+                cache: {
+                    provider: this.cache?.providerName || 'in-memory',
+                    status: cacheHealth?.connected ? 'connected' : (this.cache ? 'degraded' : 'fallback_active'),
+                    fallbackMode: 'in-memory',
+                },
             },
             deadLetterQueue,
             cacheHealth,

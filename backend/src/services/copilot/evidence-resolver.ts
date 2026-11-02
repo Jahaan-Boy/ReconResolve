@@ -11,6 +11,13 @@ export interface ResolvedEvidenceItem {
 }
 
 // Redact known secret fields from raw JSON payloads
+function toIsoSafe(d: any): string {
+    if (!d) return new Date().toISOString();
+    if (d instanceof Date) return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
 export function redactSensitivePayload(raw: any): any {
     if (!raw || typeof raw !== 'object') return raw;
     if (Array.isArray(raw)) {
@@ -99,7 +106,7 @@ export class EvidenceResolver {
                     amountMinor: row.amountMinor.toString(),
                     currency: row.currency,
                     feeMinor: row.feeMinor ? row.feeMinor.toString() : null,
-                    occurredAt: row.occurredAt instanceof Date ? row.occurredAt.toISOString() : new Date(row.occurredAt).toISOString(),
+                    occurredAt: toIsoSafe(row.occurredAt),
                     provider: row.providerConnection?.provider,
                     connectionKey: row.providerConnection?.connectionKey,
                     rawPayload: redactSensitivePayload(row.rawPayload),
@@ -143,7 +150,7 @@ export class EvidenceResolver {
                     status: row.status,
                     amountMinor: row.amountMinor.toString(),
                     currency: row.currency,
-                    orderedAt: row.orderedAt instanceof Date ? row.orderedAt.toISOString() : new Date(row.orderedAt).toISOString(),
+                    orderedAt: toIsoSafe(row.orderedAt),
                     metadata: redactSensitivePayload(row.metadata),
                 },
             };
@@ -193,7 +200,7 @@ export class EvidenceResolver {
                     failureReason: row.failureReason,
                     startedAt: row.startedAt ? (row.startedAt instanceof Date ? row.startedAt.toISOString() : new Date(row.startedAt).toISOString()) : null,
                     completedAt: row.completedAt ? (row.completedAt instanceof Date ? row.completedAt.toISOString() : new Date(row.completedAt).toISOString()) : null,
-                    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
+                    createdAt: toIsoSafe(row.createdAt),
                 },
             };
         } catch (err) {

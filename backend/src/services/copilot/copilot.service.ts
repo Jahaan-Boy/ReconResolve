@@ -415,33 +415,7 @@ export class CopilotService {
             return { ex, amountMinor, currency, label };
         });
 
-        itemsWithExposure.sort((a: any, b: any) => (b.amountMinor > a.amountMinor ? 1 : -1));
-        const top3 = itemsWithExposure.slice(0, 3);
-
-        const evidenceRefs: CopilotEvidenceRef[] = [];
-        const facts: string[] = [];
-
-        top3.forEach((item: any, idx: number) => {
-            const formatted = formatMinorAmount(item.amountMinor, item.currency);
-            facts.push(
-                `#${idx + 1}: Exception ${item.ex.id.slice(0, 8)}... (${item.ex.type}) with exposure of ${formatted} [Status: ${item.ex.status}]`,
-            );
-            evidenceRefs.push({
-                id: item.ex.id,
-                type: 'exception',
-                label: `Exception ${item.ex.id.slice(0, 8)} (${formatted})`,
-                details: item.label,
-            });
-            if (item.ex.reconciliationRunId) {
-                evidenceRefs.push({
-                    id: item.ex.reconciliationRunId,
-                    type: 'run',
-                    label: `Run ${item.ex.reconciliationRunId.slice(0, 8)}`,
-                });
-            }
-        });
-
-        if (top3.length === 0) {
+        if (itemsWithExposure.length === 0) {
             return {
                 question,
                 intent: 'largest_unresolved_exceptions',
@@ -458,15 +432,53 @@ export class CopilotService {
             };
         }
 
+        // Group by currency first to maintain strict financial boundaries and prevent cross-currency numerical mixing
+        const currencyGroups = new Map<string, typeof itemsWithExposure>();
+        for (const item of itemsWithExposure) {
+            const curr = item.currency.toUpperCase();
+            const group = currencyGroups.get(curr) || [];
+            group.push(item);
+            currencyGroups.set(curr, group);
+        }
+
+        const evidenceRefs: CopilotEvidenceRef[] = [];
+        const facts: string[] = [];
+
+        // For each currency group, sort by amountMinor descending and select top exposure candidates
+        for (const [curr, items] of currencyGroups.entries()) {
+            items.sort((a: any, b: any) => (b.amountMinor > a.amountMinor ? 1 : -1));
+            const topForCurrency = items.slice(0, 3);
+
+            topForCurrency.forEach((item: any, idx: number) => {
+                const formatted = formatMinorAmount(item.amountMinor, item.currency);
+                facts.push(
+                    `#${idx + 1} [${curr}]: Exception ${item.ex.id.slice(0, 8)}... (${item.ex.type}) with exposure of ${formatted} [Status: ${item.ex.status}]`,
+                );
+                evidenceRefs.push({
+                    id: item.ex.id,
+                    type: 'exception',
+                    label: `Exception ${item.ex.id.slice(0, 8)} (${formatted})`,
+                    details: item.label,
+                });
+                if (item.ex.reconciliationRunId) {
+                    evidenceRefs.push({
+                        id: item.ex.reconciliationRunId,
+                        type: 'run',
+                        label: `Run ${item.ex.reconciliationRunId.slice(0, 8)}`,
+                    });
+                }
+            });
+        }
+
         return {
             question,
             intent: 'largest_unresolved_exceptions',
-            answer: `The three largest unresolved discrepancies account for the bulk of pending financial exposure in your queue. The highest single item is ${facts[0]} followed by ${top3.length > 1 ? facts[1] : 'none'}.`,
-            summary: `Identified top ${top3.length} unresolved exceptions by financial exposure.`,
+            answer: `The largest unresolved discrepancies by currency account for the bulk of pending financial exposure in your queue: ${facts.slice(0, 3).join('; ')}.`,
+            summary: `Identified top unresolved exceptions by currency-separated financial exposure across ${currencyGroups.size} currency code(s).`,
             observedFacts: facts,
             interpretations: [
                 'Unresolved captured payments with missing orders carry high operational risk of customer fulfillment delay or chargebacks.',
-                'Discrepancies exceeding 100.00 should be prioritized for immediate ledger triage.',
+                'Currency boundaries are strictly maintained; monetary values are never compared or aggregated across differing currency codes.',
             ],
             unknowns: [
                 'Whether the missing internal orders were cancelled during checkout or failed during webhook delivery cannot be verified without merchant ERP logs.',

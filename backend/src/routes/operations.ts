@@ -98,6 +98,43 @@ export function createOperationsRouter(deps: OperationsRouterDeps = {}): Router 
                 const context = resolveOperatorContext(req);
                 const service = getService();
                 const result = await service.replayOutboxEvent(merchantId, eventId, context);
+
+                if (result.outcome === 'unavailable') {
+                    res.status(404).json({
+                        error: 'NOT_FOUND',
+                        message: result.reason || 'Outbox event not found or access denied for this merchant',
+                        result,
+                    });
+                    return;
+                }
+
+                if (result.outcome === 'already_queued') {
+                    res.status(409).json({
+                        error: 'CONCURRENCY_CONFLICT',
+                        message: result.reason || `Event is already in "${result.status}" status or was concurrently replayed`,
+                        result,
+                    });
+                    return;
+                }
+
+                if (result.outcome === 'rejected_due_to_state') {
+                    res.status(409).json({
+                        error: 'INVALID_STATE',
+                        message: result.reason || 'Dispatched events cannot be replayed as they have already been delivered successfully',
+                        result,
+                    });
+                    return;
+                }
+
+                if (result.outcome === 'attempt_ceiling_reached') {
+                    res.status(409).json({
+                        error: 'ATTEMPT_CEILING_REACHED',
+                        message: result.message || 'Maximum attempt ceiling reached (5 attempts)',
+                        result,
+                    });
+                    return;
+                }
+
                 res.status(200).json(result);
             } catch (err) {
                 handleRouteError(res, err);

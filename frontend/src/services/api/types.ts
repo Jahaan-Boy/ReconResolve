@@ -604,18 +604,58 @@ export interface OperationsSummary {
         dispatchedCount: number;
         oldestPendingAgeMs: number;
         deadLetterCount: number;
+        retriedCount?: number;
+        terminallyFailedCount?: number;
+    };
+    webhooks?: {
+        totalReceivedCount: number;
+        processedCount: number;
+        processingCount: number;
+        failedCount: number;
+        receivedPendingCount: number;
+        verificationFailures: {
+            status: 'unavailable';
+            reason: string;
+            requiredInstrumentation: string;
+        };
     };
     reconciliation: {
         latestRunStatus: string | null;
-        latestRunId: string | null;
+        latestRunId?: string | null;
         failedRunsCount: number;
         recentAmbiguousCount: number;
+        totalRunsCount?: number;
+        completedRunsCount?: number;
+        runningRunsCount?: number;
+        breakBreakdown?: {
+            unmatchedCount: number;
+            ambiguousCount: number;
+            discrepancyCount: number;
+        };
+    };
+    readiness?: {
+        database: {
+            status: 'connected' | 'degraded' | 'disconnected';
+            latencyMs?: number;
+        };
+        cache: {
+            provider: string;
+            status: 'connected' | 'degraded' | 'fallback_active';
+            fallbackMode: string;
+        };
     };
     investigations: {
         totalInvestigationsCount: number;
-        recentFailedCount: number;
+        recentFailedCount?: number;
+        failedInvestigationsCount?: number;
     };
     deadLetterQueue: DeadLetterRecord[];
+    cacheHealth?: {
+        provider: string;
+        connected: boolean;
+        degraded: boolean;
+        latencyMs?: number;
+    };
 }
 
 export interface WebhookEventRecord {

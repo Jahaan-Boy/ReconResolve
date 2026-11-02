@@ -8,6 +8,7 @@ import {
     type AuthMiddlewareDeps,
 } from '../auth/middleware';
 import { CopilotService, type CopilotServiceDeps } from '../services/copilot/copilot.service';
+import { EvidenceResolver } from '../services/copilot/evidence-resolver';
 import {
     getCopilotSessionRepository,
     type CopilotSessionRepository,
@@ -398,6 +399,56 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
                 res.status(err.statusCode || 500).json({
                     error: 'COPILOT_ERROR',
                     message: err.message || 'An unexpected copilot answering error occurred',
+                });
+            }
+        },
+    );
+
+    // 8. GET /api/merchants/:merchantId/copilot/evidence/:refType/:refId
+    // Authorized, tenant-scoped evidence resolver with automatic secret redaction
+    router.get(
+        '/evidence/:refType/:refId',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (req: Request, res: Response): Promise<void> => {
+            try {
+                const { merchantId, refType, refId } = req.params;
+                validateMerchantParam(merchantId);
+
+                let db: any = deps.serviceDeps?.db;
+                if (!db) {
+                    try {
+                        db = getDB();
+                    } catch {
+                        // DB unavailable
+                    }
+                }
+
+                if (!db) {
+                    res.status(503).json({
+                        error: 'DATABASE_UNAVAILABLE',
+                        message: 'Database service unavailable to resolve evidence reference',
+                    });
+                    return;
+                }
+
+                const resolver = new EvidenceResolver(db);
+                const item = await resolver.resolveReference(merchantId, refType, refId);
+
+                if (!item.available) {
+                    res.status(404).json({
+                        error: 'NOT_FOUND',
+                        message: item.reason || 'Evidence reference not found or access denied for this merchant',
+                        item,
+                    });
+                    return;
+                }
+
+                res.status(200).json(item);
+            } catch (err: any) {
+                console.error('[CopilotRouter:resolveEvidence] Unexpected error:', sanitizeErrorMessage(err));
+                res.status(err.statusCode || 500).json({
+                    error: 'COPILOT_EVIDENCE_ERROR',
+                    message: err.message || 'Failed to resolve evidence reference',
                 });
             }
         },
