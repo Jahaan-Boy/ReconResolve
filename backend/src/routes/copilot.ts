@@ -121,6 +121,24 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
         },
     );
 
+    // 1b. GET /api/merchants/:merchantId/copilot/storage-status
+    router.get(
+        '/storage-status',
+        requireRole(['OWNER', 'ADMIN', 'ANALYST', 'VIEWER']),
+        async (_req: Request, res: Response): Promise<void> => {
+            try {
+                const sessionRepo = getSessionRepo();
+                res.status(200).json(sessionRepo.getStorageModeStatus());
+            } catch (err: any) {
+                console.error('[CopilotRouter:storage-status] Unexpected error:', sanitizeErrorMessage(err));
+                res.status(500).json({
+                    error: 'COPILOT_STORAGE_ERROR',
+                    message: 'Failed to retrieve copilot storage status',
+                });
+            }
+        },
+    );
+
     // 2. GET /api/merchants/:merchantId/copilot/sessions
     router.get(
         '/sessions',
@@ -135,7 +153,10 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
                 const userId = getActorId(req);
 
                 const result = await sessionRepo.listSessions(merchantId, userId, query.limit, query.cursor);
-                res.status(200).json(result);
+                res.status(200).json({
+                    ...result,
+                    storageStatus: sessionRepo.getStorageModeStatus(),
+                });
             } catch (err: any) {
                 if (err instanceof z.ZodError) {
                     res.status(400).json({

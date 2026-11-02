@@ -4,13 +4,21 @@ import type {
     CopilotCapabilitiesResult,
     CopilotEvidenceRef,
     CopilotIntent,
+    CopilotSession,
+    CopilotMessage,
 } from './types';
 import { routeQuestionIntent } from './copilot-intent-router';
 import { formatMinorAmount } from '../intelligence/portfolio-intelligence.service';
+import { CopilotError } from './errors';
+import {
+    type CopilotSessionRepository,
+    getCopilotSessionRepository,
+} from './session-repository';
 
 export interface CopilotServiceDb {
     reconciliationException: {
         findMany(args: any): Promise<any[]>;
+        findFirst?(args: any): Promise<any>;
         count(args: any): Promise<number>;
     };
     reconciliationRun: {
@@ -20,21 +28,248 @@ export interface CopilotServiceDb {
     };
     providerTransaction: {
         findMany(args: any): Promise<any[]>;
+        findFirst?(args: any): Promise<any>;
     };
     merchantOrder: {
         findMany(args: any): Promise<any[]>;
+        findFirst?(args: any): Promise<any>;
     };
 }
 
 export interface CopilotServiceDeps {
-    db: CopilotServiceDb;
+    db: any;
+    repository?: CopilotSessionRepository;
 }
 
 export class CopilotService {
-    private readonly db: CopilotServiceDb;
+    private readonly db: any;
+    private readonly repository: CopilotSessionRepository;
 
     constructor(deps: CopilotServiceDeps) {
         this.db = deps.db;
+        this.repository = deps.repository ?? getCopilotSessionRepository(deps.db);
+    }
+
+    async createSession(merchantId: string, userId: string, title?: string): Promise<CopilotSession> {
+        if (title && title.length > 128) {
+            throw CopilotError.validationFailed('Session title cannot exceed 128 characters');
+        }
+        return this.repository.createSession({ merchantId, userId, title });
+    }
+
+    async sendMessage(options: {
+        merchantId: string;
+        sessionId: string;
+        userId: string;
+        content: string;
+        requestId?: string;
+    }): Promise<{
+        userMessage: CopilotMessage;
+        assistantMessage: CopilotMessage;
+        result: CopilotAskResult | any;
+    }> {
+        const { merchantId, sessionId, userId, content, requestId } = options;
+        if (!content || content.trim().length === 0) {
+            throw CopilotError.validationFailed('Message content cannot be empty');
+        }
+        if (content.length > 4000) {
+            throw CopilotError.validationFailed('Message content cannot exceed 4,000 characters');
+        }
+
+        // 1. Strict read-only money movement interception
+        const lowerContent = content.toLowerCase();
+        const moneyMovementKeywords = ['refund', 'capture', 'payout', 'move money', 'transfer funds', 'chargeback'];
+        const isMoneyMovement = moneyMovementKeywords.some((kw) => lowerContent.includes(kw));
+
+        if (isMoneyMovement) {
+            const userMessage = await this.repository.appendMessage({
+                merchantId,
+                sessionId,
+                role: 'user',
+                content,
+                requestId,
+            });
+
+            const assistantContent =
+                'ReconResolve Copilot is strictly read-only and cannot execute refunds, captures, payouts, or financial adjustments. Please perform this action in your provider portal or operational console.';
+
+            const answerPayload = {
+                question: content,
+                intent: 'guardrail_blocked' as CopilotIntent,
+                answer: assistantContent,
+                summary: 'Read-only guardrail enforced: money movement blocked.',
+                facts: [
+                    'Direct money movement (refunds, captures, payouts, account adjustments) is disabled at the policy boundary.',
+                ],
+                observedFacts: [
+                    'Direct money movement (refunds, captures, payouts, account adjustments) is disabled at the policy boundary.',
+                ],
+                interpretations: ['User prompt contained instructions requesting monetary movement actions.'],
+                unknowns: [],
+                evidenceRefs: [],
+                suggestedActions: [
+                    'Navigate to your PayPal business portal to issue authorized customer refunds.',
+                    'Use the Exception Management console to review break evidence in read-only mode.',
+                ],
+                isReadOnlyNotice: true,
+                isAiGenerated: false,
+                generatedAt: new Date().toISOString(),
+                queryWindow: 'none',
+            };
+
+            const assistantMessage = await this.repository.appendMessage({
+                merchantId,
+                sessionId,
+                role: 'assistant',
+                content: assistantContent,
+                answerPayload,
+                requestId,
+            });
+
+            return {
+                userMessage,
+                assistantMessage,
+                result: answerPayload,
+            };
+        }
+
+        // 2. Append user message
+        const userMessage = await this.repository.appendMessage({
+            merchantId,
+            sessionId,
+            role: 'user',
+            content,
+            requestId,
+        });
+
+        // 3. Check for specific exception inquiry
+        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+        const matchedUuid = content.match(uuidRegex);
+
+        if (matchedUuid && this.db.reconciliationException) {
+            const excId = matchedUuid[0];
+            const [exc, openCount] = await Promise.all([
+                this.db.reconciliationException.findFirst
+                    ? this.db.reconciliationException.findFirst({
+                          where: { id: excId, merchantId },
+                          include: {
+                              providerTransaction: true,
+                              merchantOrder: true,
+                              auditEvents: true,
+                          },
+                      })
+                    : null,
+                this.db.reconciliationException.count({
+                    where: { merchantId, status: 'OPEN' },
+                }),
+            ]);
+
+            if (exc) {
+                const evidenceRefs: CopilotEvidenceRef[] = [
+                    {
+                        id: exc.id,
+                        type: 'exception',
+                        label: `Exception ${exc.id.slice(0, 8)} (${exc.type})`,
+                        details: `Status: ${exc.status}`,
+                    },
+                ];
+
+                const facts: string[] = [
+                    `Open breaks: ${openCount}`,
+                    `Break type: ${exc.type}`,
+                    `Lifecycle status: ${exc.status} (version ${exc.version})`,
+                ];
+
+                if (exc.providerTransaction) {
+                    facts.push(
+                        `Provider Txn ${exc.providerTransaction.providerTxnId} [${exc.providerTransaction.currency} ${formatMinorAmount(exc.providerTransaction.amountMinor, exc.providerTransaction.currency)}]`,
+                    );
+                    evidenceRefs.push({
+                        id: exc.providerTransaction.id,
+                        type: 'transaction',
+                        label: `Provider Txn ${exc.providerTransaction.providerTxnId}`,
+                        details: `Amount: ${exc.providerTransaction.currency} ${formatMinorAmount(exc.providerTransaction.amountMinor, exc.providerTransaction.currency)}`,
+                    });
+                }
+
+                if (exc.merchantOrder) {
+                    facts.push(
+                        `Merchant Order ${exc.merchantOrder.externalOrderId} [${exc.merchantOrder.currency} ${formatMinorAmount(exc.merchantOrder.amountMinor, exc.merchantOrder.currency)}]`,
+                    );
+                    evidenceRefs.push({
+                        id: exc.merchantOrder.id,
+                        type: 'order',
+                        label: `Order ${exc.merchantOrder.externalOrderId}`,
+                        details: `Amount: ${exc.merchantOrder.currency} ${formatMinorAmount(exc.merchantOrder.amountMinor, exc.merchantOrder.currency)}`,
+                    });
+                }
+
+                const assistantContent = `Exception ${exc.id} is currently ${exc.status} due to ${exc.type}. The system currently has ${openCount} open breaks requiring triage.`;
+
+                const answerPayload = {
+                    question: content,
+                    intent: 'exception_breakdown' as CopilotIntent,
+                    answer: assistantContent,
+                    summary: `Exception ${exc.id.slice(0, 8)} status: ${exc.status} (${exc.type}).`,
+                    facts,
+                    observedFacts: facts,
+                    interpretations: [
+                        'Discrepancy identified between recorded provider transactions and internal merchant orders.',
+                    ],
+                    unknowns: [],
+                    evidenceRefs,
+                    suggestedActions: [
+                        'Inspect recent audit events for operator updates.',
+                        'Verify transaction settlement status in payment provider dashboard.',
+                    ],
+                    isAiGenerated: false,
+                    generatedAt: new Date().toISOString(),
+                    queryWindow: 'all',
+                };
+
+                const assistantMessage = await this.repository.appendMessage({
+                    merchantId,
+                    sessionId,
+                    role: 'assistant',
+                    content: assistantContent,
+                    answerPayload,
+                    requestId,
+                });
+
+                return {
+                    userMessage,
+                    assistantMessage,
+                    result: answerPayload,
+                };
+            }
+        }
+
+        // 4. Default: answer grounded in DB facts with bounded context (max 6 messages)
+        const recentTurns = await this.repository.getRecentTurnWindow(merchantId, sessionId, 6);
+        const result = await this.answerQuestion(merchantId, {
+            question: content,
+            recentTurns,
+        });
+
+        const payloadWithFacts = {
+            ...result,
+            facts: result.facts || result.observedFacts,
+        };
+
+        const assistantMessage = await this.repository.appendMessage({
+            merchantId,
+            sessionId,
+            role: 'assistant',
+            content: result.answer,
+            answerPayload: payloadWithFacts,
+            requestId,
+        });
+
+        return {
+            userMessage,
+            assistantMessage,
+            result: payloadWithFacts,
+        };
     }
 
     getCapabilities(): CopilotCapabilitiesResult {
@@ -162,7 +397,7 @@ export class CopilotService {
         });
 
         // Compute exposure for each and sort
-        const itemsWithExposure = exceptions.map((ex) => {
+        const itemsWithExposure = exceptions.map((ex: any) => {
             let amountMinor = 0n;
             let currency = 'USD';
             let label = 'Unresolved discrepancy';
@@ -180,13 +415,13 @@ export class CopilotService {
             return { ex, amountMinor, currency, label };
         });
 
-        itemsWithExposure.sort((a, b) => (b.amountMinor > a.amountMinor ? 1 : -1));
+        itemsWithExposure.sort((a: any, b: any) => (b.amountMinor > a.amountMinor ? 1 : -1));
         const top3 = itemsWithExposure.slice(0, 3);
 
         const evidenceRefs: CopilotEvidenceRef[] = [];
         const facts: string[] = [];
 
-        top3.forEach((item, idx) => {
+        top3.forEach((item: any, idx: number) => {
             const formatted = formatMinorAmount(item.amountMinor, item.currency);
             facts.push(
                 `#${idx + 1}: Exception ${item.ex.id.slice(0, 8)}... (${item.ex.type}) with exposure of ${formatted} [Status: ${item.ex.status}]`,
@@ -334,7 +569,7 @@ export class CopilotService {
                 observedFacts: [`Completed runs in database: ${runs.length}`],
                 interpretations: ['Additional reconciliation runs must be executed before trends can be computed.'],
                 unknowns: ['Prior run baseline is not recorded.'],
-                evidenceRefs: runs.map((r) => ({
+                evidenceRefs: runs.map((r: any) => ({
                     id: r.id,
                     type: 'run',
                     label: `Run ${r.id.slice(0, 8)} (${r.status})`,
@@ -566,7 +801,7 @@ export class CopilotService {
         const evidenceRefs: CopilotEvidenceRef[] = [];
         const currTotals = new Map<string, bigint>();
 
-        exceptions.slice(0, 5).forEach((ex) => {
+        exceptions.slice(0, 5).forEach((ex: any) => {
             const txn = ex.providerTransaction;
             if (txn) {
                 const formatted = formatMinorAmount(txn.amountMinor, txn.currency);

@@ -1,5 +1,6 @@
 import { ExceptionManagementError } from './errors';
 import { validateAndPlanTransition } from './state-machine';
+import { invalidateMerchantScope } from '../cache';
 import type {
     DismissExceptionInput,
     ExceptionAction,
@@ -149,6 +150,11 @@ export function createExceptionLifecycleService(
             fromStatus: plan.fromStatus,
             toStatus: plan.toStatus,
             durationMs: Date.now() - startTime,
+        });
+
+        // Invalidate affected merchant cache scopes upon successful state mutation
+        invalidateMerchantScope(merchantId, ['dashboard', 'trends', 'exceptions']).catch((err) => {
+            logger.warn('Failed to invalidate cache after exception transition', { error: String(err) });
         });
 
         return result;

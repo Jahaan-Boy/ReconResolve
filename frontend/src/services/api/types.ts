@@ -655,7 +655,7 @@ export interface TimelineStep {
     timestamp: string | null;
     entityId: string | null;
     summary: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     error?: string | null;
 }
 
