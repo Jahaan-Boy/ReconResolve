@@ -4,6 +4,7 @@ import { createReconciliationRepository } from '../../repositories/reconciliatio
 import { sanitizeErrorMessage } from '../outbox/error-sanitizer';
 import { ReconciliationError } from './errors';
 import { evaluateMatch } from './matching-policy';
+import { invalidateMerchantScope } from '../cache';
 import type {
     CandidateOrder,
     ListMatchesFilter,
@@ -291,6 +292,9 @@ export class ReconciliationService {
             const completedAt = new Date();
             // Finalize run as COMPLETED
             await this.repository.finalizeRun(run.id, 'COMPLETED', counters);
+
+            // Invalidate merchant cache scopes upon reconciliation completion
+            invalidateMerchantScope(input.merchantId, ['dashboard', 'trends', 'operations']).catch(() => {});
 
             return {
                 runId: run.id,

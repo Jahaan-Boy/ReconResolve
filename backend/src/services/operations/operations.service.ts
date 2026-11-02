@@ -6,8 +6,11 @@ import type {
     OperationsSummaryResult,
     PipelineHealthStatus,
     ReplayOutboxEventResult,
-    TimelineStep,
+    TimelineStage,
 } from './types';
+import type { CacheService } from '../cache';
+import { invalidateMerchantScope } from '../cache';
+import { redactSensitivePayload } from '../copilot/evidence-resolver';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,6 +46,7 @@ export interface OperationsServiceDb {
 
 export interface OperationsServiceDeps {
     db: OperationsServiceDb;
+    cache?: CacheService;
 }
 
 export interface OperatorContext {
@@ -71,9 +75,11 @@ function categorizeError(errorMsg: string | null | undefined): string {
 
 export class OperationsService {
     private readonly db: OperationsServiceDb;
+    private readonly cache?: CacheService;
 
     constructor(deps: OperationsServiceDeps) {
         this.db = deps.db;
+        this.cache = deps.cache;
     }
 
     async getSummary(merchantId: string): Promise<OperationsSummaryResult> {
@@ -110,10 +116,21 @@ export class OperationsService {
                 where: { merchantId, status: 'FAILED' },
                 orderBy: { updatedAt: 'desc' },
                 take: 20,
+                select: {
+                    id: true,
+                    aggregateType: true,
+                    aggregateId: true,
+                    eventType: true,
+                    attemptCount: true,
+                    lastError: true,
+                    createdAt: true,
+                    updatedAt: true,
+                },
             }),
             this.db.reconciliationRun.findFirst({
                 where: { merchantId },
                 orderBy: { createdAt: 'desc' },
+                select: { id: true, status: true, completedAt: true, createdAt: true },
             }),
             this.db.reconciliationRun.count({
                 where: { merchantId, status: 'FAILED' },
@@ -122,37 +139,65 @@ export class OperationsService {
                 where: { merchantId },
                 _sum: { ambiguousCount: true },
             }),
-            this.db.exceptionInvestigation?.count({ where: { merchantId } }) ?? Promise.resolve(0),
-            this.db.exceptionInvestigation?.count({ where: { merchantId, status: 'FAILED' } }) ?? Promise.resolve(0),
+            this.db.exceptionInvestigation
+                ? this.db.exceptionInvestigation.count({ where: { merchantId } })
+                : Promise.resolve(0),
+            this.db.exceptionInvestigation
+                ? this.db.exceptionInvestigation.count({ where: { merchantId, status: 'FAILED' } })
+                : Promise.resolve(0),
         ]);
 
         const oldestPendingAgeMs = oldestPendingRecord?.createdAt
             ? Math.max(0, now.getTime() - new Date(oldestPendingRecord.createdAt).getTime())
             : 0;
 
-        // Determine pipeline health classification
+        // Health evaluation
         let pipelineHealth: PipelineHealthStatus = 'HEALTHY';
-        if (failedOutboxCount > 5 || failedRunsCount > 2) {
+        if (failedOutboxCount > 5 || failedRunsCount > 0 || oldestPendingAgeMs > 60_000) {
             pipelineHealth = 'CRITICAL';
-        } else if (failedOutboxCount > 0 || failedRunsCount > 0 || oldestPendingAgeMs > 60_000) {
+        } else if (failedOutboxCount > 0 || processingOutboxCount > 10 || oldestPendingAgeMs > 15_000) {
             pipelineHealth = 'DEGRADED';
         }
 
-        const deadLetterQueue: DeadLetterRecord[] = (deadLetterRows || []).map((row: any) => {
-            const rawError = row.lastError ? sanitizeErrorMessage(row.lastError) : null;
-            return {
-                id: row.id,
-                aggregateType: row.aggregateType,
-                aggregateId: row.aggregateId,
-                eventType: row.eventType,
-                attemptCount: Number(row.attemptCount ?? 0),
-                lastErrorCategory: categorizeError(rawError),
-                lastError: rawError,
-                createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-                updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
-                replayEligible: row.status === 'FAILED',
-            };
-        });
+        const deadLetterQueue: DeadLetterRecord[] = deadLetterRows.map((r: any) => ({
+            id: r.id,
+            aggregateType: r.aggregateType,
+            aggregateId: r.aggregateId,
+            eventType: r.eventType,
+            attemptCount: r.attemptCount,
+            lastError: r.lastError ? sanitizeErrorMessage(r.lastError) : null,
+            lastErrorCategory: categorizeError(r.lastError),
+            createdAt: new Date(r.createdAt).toISOString(),
+            updatedAt: new Date(r.updatedAt).toISOString(),
+            replayEligible: r.attemptCount < 5,
+        }));
+
+        let cacheHealth:
+            | {
+                  provider: string;
+                  connected: boolean;
+                  degraded: boolean;
+                  latencyMs?: number;
+              }
+            | undefined = undefined;
+
+        if (this.cache) {
+            try {
+                const hc = await this.cache.healthCheck();
+                cacheHealth = {
+                    provider: this.cache.providerName,
+                    connected: hc.ok,
+                    degraded: !hc.ok,
+                    latencyMs: hc.latencyMs,
+                };
+            } catch {
+                cacheHealth = {
+                    provider: this.cache.providerName,
+                    connected: false,
+                    degraded: true,
+                };
+            }
+        }
 
         return {
             merchantId,
@@ -163,27 +208,27 @@ export class OperationsService {
                 processingCount: processingOutboxCount,
                 failedCount: failedOutboxCount,
                 dispatchedCount: dispatchedOutboxCount,
-                oldestPendingAgeMs,
                 deadLetterCount: failedOutboxCount,
+                oldestPendingAgeMs,
             },
             reconciliation: {
                 latestRunStatus: latestRun?.status ?? null,
-                latestRunId: latestRun?.id ?? null,
                 failedRunsCount,
-                recentAmbiguousCount: Number(ambiguousAgg?._sum?.ambiguousCount ?? 0),
+                recentAmbiguousCount: ambiguousAgg?._sum?.ambiguousCount ?? 0,
             },
             investigations: {
                 totalInvestigationsCount,
-                recentFailedCount: failedInvestigationsCount,
+                failedInvestigationsCount,
             },
             deadLetterQueue,
+            cacheHealth,
         };
     }
 
     async replayOutboxEvent(
         merchantId: string,
         eventId: string,
-        context: OperatorContext,
+        context?: OperatorContext,
     ): Promise<ReplayOutboxEventResult> {
         if (!merchantId || !UUID_REGEX.test(merchantId)) {
             throw OperationsError.invalidInput('merchantId must be a valid UUID');
@@ -205,7 +250,11 @@ export class OperationsService {
         });
 
         if (!existing) {
-            throw OperationsError.notFound('Outbox event not found or does not belong to this merchant');
+            return {
+                outcome: 'unavailable',
+                eventId,
+                reason: 'Outbox event not found or does not belong to this merchant',
+            };
         }
 
         const now = new Date();
@@ -218,31 +267,32 @@ export class OperationsService {
                 status: existing.status,
                 reason: `Outbox event is currently in "${existing.status}" status and scheduled for dispatch.`,
                 replayedAt: now.toISOString(),
-                replayedBy: context?.actorId || 'operator-sarah',
+                replayedBy: context?.actorId || 'operator-user',
             };
         }
 
         // 2. Structured feedback for dispatched events
         if (existing.status === 'DISPATCHED') {
             return {
-                outcome: 'rejected',
+                outcome: 'rejected_due_to_state',
                 eventId,
                 status: 'DISPATCHED',
                 reason: 'Dispatched events cannot be replayed as they have already been delivered successfully.',
                 replayedAt: now.toISOString(),
-                replayedBy: context?.actorId || 'operator-sarah',
+                replayedBy: context?.actorId || 'operator-user',
             };
         }
 
-        // 3. Retry ceiling check
-        if (existing.attemptCount >= 10) {
+        // 3. Retry ceiling check (5 attempts per worker state machine)
+        if (existing.attemptCount >= 5) {
             return {
-                outcome: 'rejected',
+                outcome: 'attempt_ceiling_reached',
                 eventId,
                 status: existing.status,
-                reason: 'Maximum replay retry ceiling (10 attempts) reached. Requires engineering inspection.',
+                message: 'Event has reached the maximum attempt ceiling (5 attempts) and cannot be automatically replayed.',
+                reason: 'Maximum attempt ceiling reached',
                 replayedAt: now.toISOString(),
-                replayedBy: context?.actorId || 'operator-sarah',
+                replayedBy: context?.actorId || 'operator-user',
             };
         }
 
@@ -280,9 +330,17 @@ export class OperationsService {
         }
 
         if (updateCount === 0) {
-            throw OperationsError.conflict(
-                `Outbox event ${eventId} was concurrently modified or replayed by another operator`,
-            );
+            return {
+                outcome: 'already_queued',
+                eventId,
+                message: `Outbox event ${eventId} was concurrently replayed or modified by another operator`,
+                reason: `Outbox event ${eventId} was concurrently modified or replayed by another operator`,
+            };
+        }
+
+        // Invalidate operations cache scope if cache is available
+        if (this.cache) {
+            await invalidateMerchantScope(merchantId, ['operations'], this.cache);
         }
 
         console.log(
@@ -291,7 +349,7 @@ export class OperationsService {
                 event: 'outbox.replayed',
                 eventId,
                 merchantId,
-                replayedBy: context?.actorId || 'operator-sarah',
+                replayedBy: context?.actorId || 'operator-user',
                 timestamp: now.toISOString(),
                 correlationId: context?.correlationId ?? null,
             }),
@@ -302,7 +360,7 @@ export class OperationsService {
             eventId,
             status: 'PENDING',
             replayedAt: now.toISOString(),
-            replayedBy: context?.actorId || 'operator-sarah',
+            replayedBy: context?.actorId || 'operator-user',
         };
     }
 
@@ -337,13 +395,13 @@ export class OperationsService {
 
     /**
      * Webhook-to-Outbox Event Timeline Trace
-     * Links available records across:
-     * 1. Webhook receipt and verification
-     * 2. Webhook processing result
-     * 3. Outbox event creation and dispatch attempts
-     * 4. Normalized provider transaction
-     * 5. Reconciliation run that consumed the record
-     * 6. Resulting exception or match
+     * 6 stages backed by persisted evidence:
+     * 1. WEBHOOK_RECEIVED
+     * 2. SIGNATURE_VERIFIED
+     * 3. INBOX_STORED
+     * 4. OUTBOX_ENQUEUED
+     * 5. WORKER_PROCESSED
+     * 6. LEDGER_RECORDED
      */
     async getEventTimeline(merchantId: string, eventId: string): Promise<EventTimelineResult> {
         if (!merchantId || !UUID_REGEX.test(merchantId)) {
@@ -355,7 +413,6 @@ export class OperationsService {
 
         const isUuid = UUID_REGEX.test(eventId);
         const now = new Date();
-        const steps: TimelineStep[] = [];
 
         // 1. Check if eventId matches an OutboxEvent (if UUID)
         let outbox = isUuid
@@ -380,14 +437,8 @@ export class OperationsService {
               })
             : null;
 
-        // 4. Check if eventId matches a ReconciliationException
-        let reconEx = isUuid && this.db.reconciliationException?.findFirst
-            ? await this.db.reconciliationException.findFirst({ where: { id: eventId, merchantId } })
-            : null;
-
         // Trace correlations if starting from one entity
         if (outbox && !webhook && this.db.webhookEvent?.findFirst) {
-            // Check aggregate link
             if (outbox.aggregateType === 'PAYPAL_WEBHOOK' || outbox.aggregateType === 'WEBHOOK_EVENT') {
                 webhook = await this.db.webhookEvent.findFirst({
                     where: { id: outbox.aggregateId, merchantId },
@@ -413,207 +464,140 @@ export class OperationsService {
             }
         }
 
-        if (providerTxn && !reconEx && this.db.reconciliationException?.findFirst) {
-            reconEx = await this.db.reconciliationException.findFirst({
-                where: { merchantId, providerTransactionId: providerTxn.id },
-            });
+        if (outbox && !providerTxn && this.db.providerTransaction?.findFirst) {
+            if (outbox.aggregateType === 'PROVIDER_TRANSACTION') {
+                providerTxn = await this.db.providerTransaction.findFirst({
+                    where: { id: outbox.aggregateId, merchantId },
+                });
+            }
         }
 
-        let reconMatch: any = null;
-        if (providerTxn && !reconEx && this.db.reconciliationMatch?.findFirst) {
-            reconMatch = await this.db.reconciliationMatch.findFirst({
-                where: { merchantId, providerTransactionId: providerTxn.id },
-            });
-        }
-
-        // Trace ReconciliationRun
-        let reconRun: any = null;
-        const runId = reconEx?.reconciliationRunId || reconMatch?.reconciliationRunId || providerTxn?.reconciliationRunId;
-        if (runId) {
-            reconRun = await this.db.reconciliationRun.findFirst({
-                where: { id: runId, merchantId },
-            });
-        }
-
-        // Step 1: Webhook Receipt
-        if (webhook) {
-            steps.push({
-                step: 'webhook_received',
-                title: 'Webhook Received & Verified',
-                status: 'success',
-                timestamp: webhook.receivedAt ? new Date(webhook.receivedAt).toISOString() : null,
-                entityId: webhook.id,
-                summary: `PayPal event ${webhook.eventType} verified via webhook headers.`,
-                details: {
-                    provider: webhook.provider,
-                    providerEventId: webhook.providerEventId,
-                    eventType: webhook.eventType,
-                    transmissionId: webhook.transmissionId,
-                },
-            });
-
-            // Step 2: Webhook Processing
-            const isProcessingFailed = webhook.processingStatus === 'FAILED';
-            steps.push({
-                step: 'webhook_processed',
-                title: 'Webhook Ingestion Pipeline',
-                status: isProcessingFailed ? 'failed' : 'success',
-                timestamp: webhook.verifiedAt ? new Date(webhook.verifiedAt).toISOString() : null,
-                entityId: webhook.id,
-                summary: `Webhook status: ${webhook.processingStatus}`,
-                details: {
-                    processingStatus: webhook.processingStatus,
-                },
-            });
-        } else {
-            steps.push({
-                step: 'webhook_received',
-                title: 'Webhook Ingestion',
-                status: 'not_applicable',
-                timestamp: null,
-                entityId: null,
-                summary: 'Direct provider batch or manual ingestion; no inbound webhook record.',
-            });
-        }
-
-        // Step 3: Outbox Event Dispatch
-        if (outbox) {
-            const isOutboxFailed = outbox.status === 'FAILED';
-            const isOutboxPending = outbox.status === 'PENDING' || outbox.status === 'PROCESSING';
-            steps.push({
-                step: 'outbox_dispatched',
-                title: 'Transactional Outbox Dispatch',
-                status: isOutboxFailed ? 'failed' : isOutboxPending ? 'pending' : 'success',
-                timestamp: outbox.dispatchedAt
+        // Construct the 6 explicit stages
+        const stages: TimelineStage[] = [
+            {
+                stage: 'WEBHOOK_RECEIVED',
+                title: 'Webhook Received',
+                status: webhook ? 'COMPLETED' : 'NOT_REACHED',
+                timestamp: webhook?.receivedAt ? new Date(webhook.receivedAt).toISOString() : null,
+                entityId: webhook?.id ?? null,
+                summary: webhook
+                    ? `PayPal event ${webhook.eventType} received.`
+                    : 'Webhook record not found or not reached.',
+                data: webhook ? redactSensitivePayload(webhook.payload) : undefined,
+                details: webhook ? redactSensitivePayload(webhook.payload) : undefined,
+            },
+            {
+                stage: 'SIGNATURE_VERIFIED',
+                title: 'Signature Verification',
+                status: webhook?.verifiedAt ? 'COMPLETED' : 'NOT_REACHED',
+                timestamp: webhook?.verifiedAt ? new Date(webhook.verifiedAt).toISOString() : null,
+                entityId: webhook?.id ?? null,
+                summary: webhook?.verifiedAt
+                    ? 'Webhook signature and transmission verified.'
+                    : 'Signature verification not completed or not reached.',
+            },
+            {
+                stage: 'INBOX_STORED',
+                title: 'Inbox Storage',
+                status: webhook?.id ? 'COMPLETED' : 'NOT_REACHED',
+                timestamp: webhook?.createdAt
+                    ? new Date(webhook.createdAt).toISOString()
+                    : webhook?.receivedAt
+                      ? new Date(webhook.receivedAt).toISOString()
+                      : null,
+                entityId: webhook?.id ?? null,
+                summary: webhook?.id
+                    ? `Persisted webhook event ${webhook.id}.`
+                    : 'Webhook storage not reached.',
+            },
+            {
+                stage: 'OUTBOX_ENQUEUED',
+                title: 'Outbox Enqueued',
+                status: outbox ? 'COMPLETED' : 'NOT_REACHED',
+                timestamp: outbox?.createdAt ? new Date(outbox.createdAt).toISOString() : null,
+                entityId: outbox?.id ?? null,
+                summary: outbox
+                    ? `Enqueued outbox record ${outbox.id} [${outbox.eventType}].`
+                    : 'Outbox enqueuing not reached.',
+            },
+            {
+                stage: 'WORKER_PROCESSED',
+                title: 'Worker Processed',
+                status:
+                    outbox?.status === 'DISPATCHED'
+                        ? 'COMPLETED'
+                        : outbox?.status === 'FAILED'
+                          ? 'FAILED'
+                          : outbox?.status === 'PROCESSING' || outbox?.status === 'PENDING'
+                            ? 'PENDING'
+                            : 'NOT_REACHED',
+                timestamp: outbox?.dispatchedAt
                     ? new Date(outbox.dispatchedAt).toISOString()
-                    : outbox.updatedAt || outbox.createdAt
-                      ? new Date(outbox.updatedAt || outbox.createdAt).toISOString()
-                      : now.toISOString(),
-                entityId: outbox.id,
-                summary: `Outbox event: ${outbox.eventType} [${outbox.status}] with ${outbox.attemptCount} attempt(s).`,
-                details: {
-                    aggregateType: outbox.aggregateType,
-                    aggregateId: outbox.aggregateId,
-                    eventType: outbox.eventType,
-                    attemptCount: outbox.attemptCount,
-                    status: outbox.status,
-                },
-                error: outbox.lastError ? sanitizeErrorMessage(outbox.lastError) : null,
-            });
-        } else {
-            steps.push({
-                step: 'outbox_dispatched',
-                title: 'Transactional Outbox Dispatch',
-                status: 'missing',
-                timestamp: null,
-                entityId: null,
-                summary: 'No corresponding outbox dispatch record found.',
-            });
-        }
+                    : outbox?.updatedAt
+                      ? new Date(outbox.updatedAt).toISOString()
+                      : null,
+                entityId: outbox?.id ?? null,
+                summary: outbox
+                    ? `Worker processing state: ${outbox.status} (${outbox.attemptCount} attempt(s)).`
+                    : 'Worker processing not reached.',
+                error: outbox?.lastError ? sanitizeErrorMessage(outbox.lastError) : null,
+            },
+            {
+                stage: 'LEDGER_RECORDED',
+                title: 'Ledger Recorded',
+                status: providerTxn ? 'COMPLETED' : 'NOT_REACHED',
+                timestamp: providerTxn?.occurredAt
+                    ? new Date(providerTxn.occurredAt).toISOString()
+                    : providerTxn?.createdAt
+                      ? new Date(providerTxn.createdAt).toISOString()
+                      : null,
+                entityId: providerTxn?.id ?? null,
+                summary: providerTxn
+                    ? `Normalized provider transaction recorded (${providerTxn.currency} ${providerTxn.amountMinor?.toString()}).`
+                    : 'Ledger transaction not reached.',
+                data: providerTxn
+                    ? {
+                          id: providerTxn.id,
+                          amountMinor: providerTxn.amountMinor?.toString(),
+                          currency: providerTxn.currency,
+                          providerTxnId: providerTxn.providerTxnId,
+                          type: providerTxn.type,
+                          status: providerTxn.status,
+                      }
+                    : undefined,
+                details: providerTxn
+                    ? {
+                          id: providerTxn.id,
+                          amountMinor: providerTxn.amountMinor?.toString(),
+                          currency: providerTxn.currency,
+                          providerTxnId: providerTxn.providerTxnId,
+                          type: providerTxn.type,
+                          status: providerTxn.status,
+                      }
+                    : undefined,
+            },
+        ];
 
-        // Step 4: Provider Transaction
-        if (providerTxn) {
-            steps.push({
-                step: 'provider_transaction',
-                title: 'Normalized Provider Transaction',
-                status: 'success',
-                timestamp: providerTxn.occurredAt || providerTxn.createdAt
-                    ? new Date(providerTxn.occurredAt || providerTxn.createdAt).toISOString()
-                    : now.toISOString(),
-                entityId: providerTxn.id,
-                summary: `Recorded ${providerTxn.type || 'PAYMENT'} transaction (${providerTxn.currency} ${(Number(providerTxn.amountMinor) / 100).toFixed(2)}) with status ${providerTxn.status}.`,
-                details: {
-                    providerTxnId: providerTxn.providerTxnId,
-                    type: providerTxn.type,
-                    status: providerTxn.status,
-                    currency: providerTxn.currency,
-                },
-            });
+        let pipelineOutcome: 'SUCCESS' | 'FAILED' | 'PENDING' | 'NOT_REACHED' | 'INCOMPLETE' = 'SUCCESS';
+        if (stages.every((s) => s.status === 'NOT_REACHED')) {
+            pipelineOutcome = 'NOT_REACHED';
+        } else if (stages.some((s) => s.status === 'FAILED')) {
+            pipelineOutcome = 'FAILED';
+        } else if (stages.some((s) => s.status === 'PENDING')) {
+            pipelineOutcome = 'PENDING';
+        } else if (stages.every((s) => s.status === 'COMPLETED')) {
+            pipelineOutcome = 'SUCCESS';
         } else {
-            steps.push({
-                step: 'provider_transaction',
-                title: 'Normalized Provider Transaction',
-                status: 'missing',
-                timestamp: null,
-                entityId: null,
-                summary: 'Provider transaction has not been normalized into database yet.',
-            });
-        }
-
-        // Step 5: Reconciliation Run
-        if (reconRun) {
-            steps.push({
-                step: 'reconciliation_run',
-                title: 'Reconciliation Run Processing',
-                status: reconRun.status === 'FAILED' ? 'failed' : 'success',
-                timestamp: reconRun.completedAt || reconRun.createdAt
-                    ? new Date(reconRun.completedAt || reconRun.createdAt).toISOString()
-                    : now.toISOString(),
-                entityId: reconRun.id,
-                summary: `Reconciliation run ${reconRun.id.slice(0, 8)} [Ruleset: ${reconRun.rulesetVersion}]. Considered ${reconRun.totalConsidered} records.`,
-                details: {
-                    status: reconRun.status,
-                    matchedCount: reconRun.matchedCount,
-                    unmatchedCount: reconRun.unmatchedCount,
-                    ambiguousCount: reconRun.ambiguousCount,
-                },
-            });
-        } else {
-            steps.push({
-                step: 'reconciliation_run',
-                title: 'Reconciliation Run Processing',
-                status: 'pending',
-                timestamp: null,
-                entityId: null,
-                summary: 'Record has not yet been processed by a scheduled reconciliation run.',
-            });
-        }
-
-        // Step 6: Reconciliation Outcome (Match vs Exception)
-        if (reconEx) {
-            steps.push({
-                step: 'exception_or_match',
-                title: 'Reconciliation Discrepancy Break',
-                status: reconEx.status === 'RESOLVED' || reconEx.status === 'DISMISSED' ? 'success' : 'failed',
-                timestamp: new Date(reconEx.resolvedAt || reconEx.createdAt).toISOString(),
-                entityId: reconEx.id,
-                summary: `Exception created: ${reconEx.type} [Status: ${reconEx.status}].`,
-                details: {
-                    type: reconEx.type,
-                    status: reconEx.status,
-                    resolutionNote: reconEx.resolutionNote ? sanitizeErrorMessage(reconEx.resolutionNote) : null,
-                },
-            });
-        } else if (reconMatch) {
-            steps.push({
-                step: 'exception_or_match',
-                title: 'Reconciliation Match Verified',
-                status: 'success',
-                timestamp: new Date(reconMatch.createdAt).toISOString(),
-                entityId: reconMatch.id,
-                summary: `Matched via rule code: ${reconMatch.ruleCode}.`,
-                details: {
-                    ruleCode: reconMatch.ruleCode,
-                    rulesetVersion: reconMatch.rulesetVersion,
-                },
-            });
-        } else {
-            steps.push({
-                step: 'exception_or_match',
-                title: 'Reconciliation Outcome',
-                status: 'missing',
-                timestamp: null,
-                entityId: null,
-                summary: 'No reconciliation match or exception break recorded.',
-            });
+            pipelineOutcome = 'INCOMPLETE';
         }
 
         return {
             merchantId,
             rootEventId: eventId,
-            targetEventId: eventId,
             generatedAt: now.toISOString(),
-            steps,
+            pipelineOutcome,
+            stages,
+            steps: stages,
         };
     }
 }

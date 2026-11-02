@@ -121,7 +121,9 @@ export function routeQuestionIntent(
                 q.includes('show those') ||
                 q.includes('details on that')
             ) {
-                return priorTurn.intent;
+                if (priorTurn.intent) {
+                    return priorTurn.intent;
+                }
             }
         }
     }

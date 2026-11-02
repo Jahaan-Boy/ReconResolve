@@ -55,6 +55,7 @@ export function ReconciliationCopilotPage({
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [loadingSessions, setLoadingSessions] = useState(false);
     const [sessionsError, setSessionsError] = useState<string | null>(null);
+    const [storageMode, setStorageMode] = useState<string>('postgres');
 
     // Chat messages state
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -88,6 +89,9 @@ export function ReconciliationCopilotPage({
         try {
             const res = await copilotApiClient.listSessions(targetMerchantId, 30, undefined, controller.signal);
             setSessions(res.items || []);
+            if (res.storageMode) {
+                setStorageMode(res.storageMode);
+            }
             // If sessions exist and none selected, auto-select the latest
             if (res.items && res.items.length > 0) {
                 setActiveSessionId(res.items[0].id);
@@ -347,9 +351,28 @@ export function ReconciliationCopilotPage({
                     )}
                 </div>
 
-                <div className="p-2.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center gap-1.5 text-[10px] text-slate-400">
-                    <Database className="size-3 text-slate-400 shrink-0" />
-                    <span className="truncate">Storage: Tenant Session Store</span>
+                <div className="p-2.5 border-t border-slate-200/80 bg-slate-50/50 flex flex-col gap-1 text-[10px]">
+                    <div className="flex items-center gap-1.5 text-slate-500">
+                        <Database className="size-3 text-slate-400 shrink-0" />
+                        <span className="font-medium">Persistence:</span>
+                        {storageMode === 'postgres' || storageMode === 'postgresql' ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-medium border border-emerald-200">
+                                PostgreSQL (Durable)
+                            </span>
+                        ) : (
+                            <span
+                                className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-mono font-medium border border-amber-200"
+                                title="In-memory session storage active — data is runtime-only and will be lost on backend restart."
+                            >
+                                In-Memory (Runtime Only)
+                            </span>
+                        )}
+                    </div>
+                    {storageMode !== 'postgres' && storageMode !== 'postgresql' && (
+                        <span className="text-[9px] text-amber-600 leading-tight">
+                            Transcripts are memory-backed and will reset on server restart.
+                        </span>
+                    )}
                 </div>
             </aside>
 
@@ -435,7 +458,7 @@ export function ReconciliationCopilotPage({
                                     }`}
                                 >
                                     <span className="text-[10px] text-slate-400 font-mono mb-1 px-1">
-                                        {msg.sender === 'user' ? 'You' : 'FlowOps Copilot'} • {msg.timestamp}
+                                        {msg.sender === 'user' ? 'You' : 'FlowOps Copilot'} â€¢ {msg.timestamp}
                                     </span>
 
                                     {msg.sender === 'user' ? (
@@ -615,7 +638,7 @@ export function ReconciliationCopilotPage({
                     </div>
                     <div className="max-w-3xl mx-auto mt-2 flex items-center justify-between text-[10px] text-slate-400 px-1">
                         <span>Press Enter to ask</span>
-                        <span>Read-only assistant • Context bounded to 6 recent turns</span>
+                        <span>Read-only assistant â€¢ Context bounded to 6 recent turns</span>
                     </div>
                 </div>
             </div>
