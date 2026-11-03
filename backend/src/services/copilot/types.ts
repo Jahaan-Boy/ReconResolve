@@ -23,6 +23,8 @@ export interface CopilotTurnContext {
     readonly intent?: CopilotIntent;
 }
 
+export type CopilotContext = CopilotAskRequest['context'];
+
 export interface CopilotAskRequest {
     readonly question: string;
     readonly context?: {

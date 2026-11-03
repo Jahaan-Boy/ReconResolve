@@ -58,12 +58,6 @@ const PaginationQuerySchema = z.object({
 export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
     const router = Router({ mergeParams: true });
 
-    const getService = () =>
-        deps.service ??
-        new CopilotService({
-            db: (deps.serviceDeps?.db ?? getDB()) as any,
-        });
-
     const getSessionRepo = () => {
         if (deps.sessionRepo) return deps.sessionRepo;
         let db: any = deps.serviceDeps?.db;
@@ -76,6 +70,13 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
         }
         return getCopilotSessionRepository(db);
     };
+
+    const getService = () =>
+        deps.service ??
+        new CopilotService({
+            db: (deps.serviceDeps?.db ?? getDB()) as any,
+            repository: deps.sessionRepo ?? deps.serviceDeps?.repository ?? getSessionRepo(),
+        });
 
     const authGuard = deps.authGuard ?? authenticate(deps.authDeps);
     const merchantGuard = deps.merchantGuard ?? resolveMerchantContext(deps.authDeps);
@@ -279,33 +280,13 @@ export function createCopilotRouter(deps: CopilotRouterDeps = {}): Router {
                     return;
                 }
 
-                // Retrieve explicit bounded recent context window (max 6 messages = 3 user/assistant turns)
-                const recentTurns = await sessionRepo.getRecentTurnWindow(merchantId, sessionId, 6);
-
-                // Add user message to session
-                const userMessage = await sessionRepo.addMessage({
+                const { userMessage, assistantMessage, result } = await service.sendMessage({
                     merchantId,
                     sessionId,
-                    role: 'user',
+                    userId: getActorId(req),
                     content: body.question,
                     requestId: req.headers['x-correlation-id'] as string,
-                });
-
-                // Generate fresh database-grounded response
-                const result = await service.answerQuestion(merchantId, {
-                    question: body.question,
                     context: body.context,
-                    recentTurns,
-                });
-
-                // Add assistant response message to session
-                const assistantMessage = await sessionRepo.addMessage({
-                    merchantId,
-                    sessionId,
-                    role: 'assistant',
-                    content: result.answer,
-                    answerPayload: result,
-                    requestId: req.headers['x-correlation-id'] as string,
                 });
 
                 res.status(200).json({

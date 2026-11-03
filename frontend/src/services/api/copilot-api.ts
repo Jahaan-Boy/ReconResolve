@@ -12,6 +12,15 @@ export type CopilotIntent =
     | 'guardrail_blocked'
     | 'unsupported';
 
+export interface ResolvedEvidenceItem {
+    type: 'ptxn' | 'mord' | 'run' | 'exc' | string;
+    id: string;
+    label: string;
+    available: boolean;
+    reason?: string;
+    data?: Record<string, unknown>;
+}
+
 export interface CopilotEvidenceRef {
     id: string;
     type: 'exception' | 'run' | 'transaction' | 'order';
@@ -138,6 +147,12 @@ export interface CopilotApiClient {
         updates: { title?: string; archivedAt?: string | null },
         signal?: AbortSignal,
     ): Promise<CopilotSession>;
+    getEvidence(
+        merchantId: string,
+        refType: string,
+        refId: string,
+        signal?: AbortSignal,
+    ): Promise<ResolvedEvidenceItem>;
 }
 
 export class HttpCopilotApiClient implements CopilotApiClient {
@@ -286,6 +301,23 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             },
         );
         return this.handleResponse(response, 'Failed to update session');
+    }
+
+    async getEvidence(
+        merchantId: string,
+        refType: string,
+        refId: string,
+        signal?: AbortSignal,
+    ): Promise<ResolvedEvidenceItem> {
+        const response = await fetch(
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/evidence/${encodeURIComponent(refType)}/${encodeURIComponent(refId)}`,
+            {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+            },
+        );
+        return this.handleResponse(response, 'Failed to resolve evidence reference');
     }
 }
 

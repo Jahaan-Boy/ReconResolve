@@ -2,6 +2,7 @@ import type {
     CopilotAskRequest,
     CopilotAskResult,
     CopilotCapabilitiesResult,
+    CopilotContext,
     CopilotEvidenceRef,
     CopilotIntent,
     CopilotSession,
@@ -63,12 +64,13 @@ export class CopilotService {
         userId: string;
         content: string;
         requestId?: string;
+        context?: CopilotContext;
     }): Promise<{
         userMessage: CopilotMessage;
         assistantMessage: CopilotMessage;
         result: CopilotAskResult | any;
     }> {
-        const { merchantId, sessionId, userId, content, requestId } = options;
+        const { merchantId, sessionId, userId, content, requestId, context } = options;
         if (!content || content.trim().length === 0) {
             throw CopilotError.validationFailed('Message content cannot be empty');
         }
