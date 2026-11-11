@@ -1,5 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { MotionConfig } from 'motion/react';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 const LandingPage = lazy(() =>
     import('@/features/landing/LandingPage').then((m) => ({ default: m.LandingPage }))
@@ -59,13 +60,15 @@ export default function App() {
 
     return (
         <MotionConfig reducedMotion="user">
-            <Suspense fallback={<PageFallback />}>
-                {view === 'console' ? (
-                    <OperatorConsolePage onNavigateLanding={() => navigateTo('landing')} />
-                ) : (
-                    <LandingPage onNavigateConsole={() => navigateTo('console')} />
-                )}
-            </Suspense>
+            <ErrorBoundary fallbackTitle="Application View">
+                <Suspense fallback={<PageFallback />}>
+                    {view === 'console' ? (
+                        <OperatorConsolePage onNavigateLanding={() => navigateTo('landing')} />
+                    ) : (
+                        <LandingPage onNavigateConsole={() => navigateTo('console')} />
+                    )}
+                </Suspense>
+            </ErrorBoundary>
         </MotionConfig>
     );
 }

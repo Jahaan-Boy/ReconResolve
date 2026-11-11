@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { PayPalAdapter } from '../providers/paypal/adapter';
 import { createProviderTransactionStore } from '../repositories/provider-transaction.repository';
 import { resolvePayPalConnection } from '../services/paypal-import/connection-resolver';

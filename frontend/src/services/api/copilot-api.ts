@@ -186,6 +186,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 signal,
             },
         );
@@ -202,6 +203,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify(request),
                 signal,
             },
@@ -223,6 +225,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 signal,
             },
         );
@@ -239,6 +242,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify(title ? { title } : {}),
                 signal,
             },
@@ -261,6 +265,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 signal,
             },
         );
@@ -278,6 +283,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify(request),
                 signal,
             },
@@ -296,6 +302,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify(updates),
                 signal,
             },
@@ -314,6 +321,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 signal,
             },
         );
@@ -321,4 +329,4 @@ export class HttpCopilotApiClient implements CopilotApiClient {
     }
 }
 
-export const copilotApiClient = new HttpCopilotApiClient();
+export const copilotApiClient: CopilotApiClient = new HttpCopilotApiClient();

@@ -52,6 +52,7 @@ export function createPayPalSource(adapter: PayPalAdapter): TransactionSource {
             for (const skipped of result.skipped) {
                 const category = rejectedCategory(skipped.reason);
                 rejectedCategories[category] = (rejectedCategories[category] ?? 0) + 1;
+                console.log(`[paypal-sync] Skipped record: reason="${skipped.reason}"`);
             }
 
             yield {

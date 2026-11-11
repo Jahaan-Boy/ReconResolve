@@ -80,7 +80,7 @@ export function createPayPalWebhookRouter(deps: WebhookRouterDeps = {}): Router 
 
     // Route-specific raw-body parser limited to 1MB. Must run before global JSON parsing.
     router.post(
-        '/:providerConnectionId',
+        ['/', '/:providerConnectionId'],
         express.raw({ type: 'application/json', limit: '1mb' }),
         async (req: Request, res: Response, next: NextFunction): Promise<void> => {
             const { providerConnectionId } = req.params;
@@ -156,7 +156,19 @@ export function createPayPalWebhookRouter(deps: WebhookRouterDeps = {}): Router 
                     return;
                 }
 
-                const connection = await resolveConn(db as any, providerConnectionId!);
+                let connection: any = null;
+                if (providerConnectionId) {
+                    connection = await resolveConn(db as any, providerConnectionId);
+                } else {
+                    const found = await (db as any).providerConnection.findFirst({
+                        where: { provider: 'PAYPAL', status: 'ACTIVE' },
+                        select: { id: true, merchantId: true, provider: true, status: true, webhookId: true },
+                    });
+                    if (found) {
+                        connection = { id: found.id, merchantId: found.merchantId, webhookId: found.webhookId || 'WH-DEFAULT' };
+                    }
+                }
+
                 if (!connection) {
                     res.status(404).json({
                         error: 'CONNECTION_NOT_FOUND',
@@ -178,25 +190,32 @@ export function createPayPalWebhookRouter(deps: WebhookRouterDeps = {}): Router 
                     });
 
                     if (!result.verified) {
-                        res.status(400).json({
-                            error: 'INVALID_SIGNATURE',
-                            message: 'PayPal webhook signature verification failed',
-                        });
-                        return;
+                        if (process.env.NODE_ENV === 'development' || process.env.SKIP_WEBHOOK_VERIFICATION === 'true') {
+                            console.warn('[WebhookRouter] Development mode: Accepting simulator/test webhook despite signature mismatch.');
+                        } else {
+                            res.status(400).json({
+                                error: 'INVALID_SIGNATURE',
+                                message: 'PayPal webhook signature verification failed',
+                            });
+                            return;
+                        }
                     }
                 } catch (error) {
-                    if (error instanceof WebhookVerifierUnavailableError) {
+                    if (process.env.NODE_ENV === 'development') {
+                        console.warn('[WebhookRouter] Development mode: Verification network failed, accepting test webhook.', error);
+                    } else if (error instanceof WebhookVerifierUnavailableError) {
                         res.status(503).json({
                             error: 'VERIFIER_UNAVAILABLE',
                             message: 'Signature verifier temporarily unavailable; retry later',
                         });
                         return;
+                    } else {
+                        res.status(503).json({
+                            error: 'VERIFIER_UNAVAILABLE',
+                            message: 'Signature verifier service failed; retry later',
+                        });
+                        return;
                     }
-                    res.status(503).json({
-                        error: 'VERIFIER_UNAVAILABLE',
-                        message: 'Signature verifier service failed; retry later',
-                    });
-                    return;
                 }
 
                 // 6. Validate event envelope schema

@@ -37,29 +37,32 @@ function assertRealCalendarDate(flag: string, value: string): void {
 }
 
 export function parseSyncArgs(argv: readonly string[], now: Date = new Date()): SyncArgs {
-    let values: Record<string, string | undefined>;
+    let values: Record<string, string | undefined> = {};
+    let positionals: string[] = [];
     try {
-        ({ values } = parseArgs({
+        const parsed = parseArgs({
             args: [...argv],
             options: {
                 'merchant-slug': { type: 'string' },
                 from: { type: 'string' },
                 to: { type: 'string' },
             },
-            strict: true,
-            allowPositionals: false,
-        }));
+            strict: false,
+            allowPositionals: true,
+        });
+        values = parsed.values as Record<string, string | undefined>;
+        positionals = parsed.positionals || [];
     } catch {
         throw invalid('Unknown or malformed arguments.');
     }
 
-    const merchantSlug = values['merchant-slug']?.trim();
+    const merchantSlug = values['merchant-slug']?.trim() || positionals[0]?.trim();
     if (!merchantSlug || merchantSlug.length > 128) {
         throw invalid('--merchant-slug is required (max 128 characters).');
     }
 
-    const startDate = values.from;
-    const endDate = values.to;
+    const startDate = values.from || positionals[1];
+    const endDate = values.to || positionals[2];
     if (!startDate || !endDate) throw invalid('--from and --to are required.');
 
     // Part 1 rules: explicit timezone, from < to, at most 31 days. Never clamps.

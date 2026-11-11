@@ -86,7 +86,41 @@ export function lookupMapping(
     eventCode: string,
 ): CanonicalMapping | undefined {
     const key = `${paypalStatus}:${eventCode}`;
-    return STATUS_EVENT_MAP[key];
+    if (STATUS_EVENT_MAP[key]) {
+        return STATUS_EVENT_MAP[key];
+    }
+
+    const s = paypalStatus.toUpperCase();
+    const code = eventCode.toUpperCase();
+
+    // S = Success / Completed, C = Cleared
+    if (s === 'S' || s === 'C') {
+        if (code.startsWith('T11')) return { status: 'REFUNDED', type: 'REFUND' };
+        if (code.startsWith('T12')) return { status: 'CAPTURED', type: 'ADJUSTMENT' };
+        if (code.startsWith('T00') || code.startsWith('T07') || code.startsWith('T04')) {
+            return { status: 'CAPTURED', type: 'PAYMENT' };
+        }
+        // Account funding, balance transfers, bank deposits, internal sandbox events
+        return { status: 'CAPTURED', type: 'OTHER' };
+    }
+
+    // P = Pending
+    if (s === 'P') {
+        if (code.startsWith('T11')) return { status: 'PENDING', type: 'REFUND' };
+        return { status: 'PENDING', type: 'PAYMENT' };
+    }
+
+    // D = Denied, F = Failed
+    if (s === 'D' || s === 'F') {
+        return { status: 'FAILED', type: 'PAYMENT' };
+    }
+
+    // V = Reversed
+    if (s === 'V') {
+        return { status: 'REFUNDED', type: 'REVERSAL' };
+    }
+
+    return undefined;
 }
 
 

@@ -58,78 +58,81 @@ export interface PortfolioIntelligenceResult {
 }
 
 export interface RunSeriesItem {
-    id: string;
-    createdAt: string;
-    windowStart: string;
-    windowEnd: string;
-    status: string;
+    runId: string;
+    startedAt: string;
+    completedAt: string | null;
     totalConsidered: number;
-    matchedCount: number;
-    unmatchedCount: number;
-    ambiguousCount: number;
-    excludedCount: number;
-    matchRate: number;
+    totalMatched: number;
+    totalExceptions: number;
+    matchRatePercentage: number;
+    status: string;
 }
 
-export interface MatchRateDelta {
-    currentMatchRate: number | null;
-    previousMatchRate: number | null;
-    delta: number | null;
-    direction: 'improving' | 'worsening' | 'stable' | 'insufficient_history';
+export interface DailyRatePoint {
+    date: string;
+    matchRatePercentage: number;
+    runCount: number;
+    totalEvaluated: number;
+    totalMatched: number;
+    totalExceptions: number;
 }
 
-export interface ExceptionMovement {
-    newInflowCount: number;
-    resolvedOutflowCount: number;
-    netChange: number;
-    countsByStatus: Record<string, number>;
-    countsByType: Record<string, number>;
+export interface CurrencyExposureMovement {
+    currency: string;
+    currentExposureMinor: string;
+    previousExposureMinor: string;
+    deltaMinor: string;
+    direction: 'increasing' | 'decreasing' | 'stable';
+    currentCount: number;
+    previousCount: number;
 }
 
 export interface RecurringPatternTrend {
-    groupKey: string;
+    patternKey: string;
     label: string;
-    description: string;
-    filterType: string;
-    recurrenceCount: number;
-    status: 'NEW' | 'RECURRING' | 'IMPROVING' | 'WORSENING';
-    exposureByCurrency: Record<string, CurrencyExposure>;
+    priority: OperationalPriority;
+    currentWindowCount: number;
+    previousWindowCount: number;
+    velocityDelta: number;
+    direction: 'worsening' | 'improving' | 'stable';
+    firstSeenAt: string;
+    lastSeenAt: string;
 }
 
-export interface AgingBucketItem {
-    count: number;
-    exposureByCurrency: Record<string, CurrencyExposure>;
+export interface AgingDistribution {
+    lessThan24h: number;
+    oneToThreeDays: number;
+    fourToSevenDays: number;
+    olderThanSevenDays: number;
 }
 
-export interface AgingBuckets {
-    lessThan24h: AgingBucketItem;
-    oneToSevenDays: AgingBucketItem;
-    sevenToThirtyDays: AgingBucketItem;
-    moreThanThirtyDays: AgingBucketItem;
-    oldestUnresolved: {
-        id: string;
-        ageDays: number;
-        type: string;
-        currency: string;
-        formattedExposure: string;
-    } | null;
+export interface ResolutionVelocity {
+    averageResolutionHours: number | null;
+    openAverageAgeHours: number;
 }
 
 export interface PortfolioTrendsResult {
     merchantId: string;
-    window: TrendWindow;
     generatedAt: string;
+    window: TrendWindow;
+    trendStatus: 'sufficient' | 'insufficient';
+    insufficientReason: string | null;
     runSeries: RunSeriesItem[];
-    matchRateDelta: MatchRateDelta;
-    exceptionMovement: ExceptionMovement;
-    exposureByCurrency: Record<string, CurrencyExposure>;
-    recurringPatterns: RecurringPatternTrend[];
-    agingBuckets: AgingBuckets;
-    dataLimitations: string[];
+    dailyMatchRatePoints: DailyRatePoint[];
+    overallMatchRateChange: number | null;
+    exposureMovements: Record<string, CurrencyExposureMovement>;
+    recurringPatternTrends: RecurringPatternTrend[];
+    agingDistribution: AgingDistribution;
+    overallVelocity: ResolutionVelocity;
 }
 
 export interface IntelligenceApiClient {
     getPortfolioAnalysis(
+        merchantId: string,
+        window?: PortfolioWindow,
+        signal?: AbortSignal,
+    ): Promise<PortfolioIntelligenceResult>;
+    getPortfolioSnapshot(
         merchantId: string,
         window?: PortfolioWindow,
         signal?: AbortSignal,
@@ -154,10 +157,11 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
         signal?: AbortSignal,
     ): Promise<PortfolioIntelligenceResult> {
         const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/portfolio?window=${window}`,
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/portfolio?window=${encodeURIComponent(window)}`,
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 signal,
             },
         );
@@ -173,7 +177,7 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
                 typeof errorBody['error'] === 'string' ? errorBody['error'] : 'INTELLIGENCE_ERROR',
                 typeof errorBody['message'] === 'string'
                     ? errorBody['message']
-                    : 'Failed to fetch portfolio intelligence analysis',
+                    : 'Failed to fetch portfolio intelligence',
                 response.status,
                 errorBody['details'],
             );
@@ -182,16 +186,25 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
         return await response.json();
     }
 
+    async getPortfolioSnapshot(
+        merchantId: string,
+        window: PortfolioWindow = '30d',
+        signal?: AbortSignal,
+    ): Promise<PortfolioIntelligenceResult> {
+        return this.getPortfolioAnalysis(merchantId, window, signal);
+    }
+
     async getPortfolioTrends(
         merchantId: string,
         window: TrendWindow = '30d',
         signal?: AbortSignal,
     ): Promise<PortfolioTrendsResult> {
         const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/trends?window=${window}`,
+            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/trends?window=${encodeURIComponent(window)}`,
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 signal,
             },
         );
@@ -207,7 +220,7 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
                 typeof errorBody['error'] === 'string' ? errorBody['error'] : 'INTELLIGENCE_ERROR',
                 typeof errorBody['message'] === 'string'
                     ? errorBody['message']
-                    : 'Failed to fetch portfolio trends analysis',
+                    : 'Failed to fetch portfolio trends',
                 response.status,
                 errorBody['details'],
             );
@@ -217,4 +230,4 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
     }
 }
 
-export const intelligenceApiClient = new HttpIntelligenceApiClient();
+export const intelligenceApiClient: IntelligenceApiClient = new HttpIntelligenceApiClient();

@@ -16,7 +16,7 @@ import {
     Activity,
 } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
-import { SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
+import { KNOWN_MERCHANTS } from '@/config/merchants';
 import type { OperatorContext } from '@/services/api/types';
 import type { ApiSource } from '@/services/api/api-client';
 import type { UserProfile, PermittedMerchant } from '@/services/api/auth-api';
@@ -32,11 +32,13 @@ interface ConsoleAppHeaderProps {
     permittedMerchants: PermittedMerchant[];
     onOpenAuthModal: () => void;
     onLogout: () => void;
-    apiSource: ApiSource;
-    onToggleApiSource: (source: ApiSource) => void;
+    apiSource?: ApiSource;
+    onToggleApiSource?: (source: ApiSource) => void;
     onNavigateLanding: () => void;
     onOpenOrderIngestion?: () => void;
     onOpenReconciliation?: () => void;
+    onSyncPayPal?: () => void;
+    isSyncingPayPal?: boolean;
     activeView?: ConsoleView;
     onChangeView?: (view: ConsoleView) => void;
 }
@@ -68,6 +70,8 @@ export function ConsoleAppHeader({
     onNavigateLanding,
     onOpenOrderIngestion,
     onOpenReconciliation,
+    onSyncPayPal,
+    isSyncingPayPal = false,
     activeView = 'workbench',
     onChangeView,
 }: ConsoleAppHeaderProps) {
@@ -79,7 +83,7 @@ export function ConsoleAppHeader({
     // Active merchant resolution (from permitted list, seeded fallback, or custom ID)
     const currentMerchant =
         permittedMerchants.find((m) => m.id === currentMerchantId) ||
-        SEEDED_MERCHANTS.find((m) => m.id === currentMerchantId) || {
+        KNOWN_MERCHANTS.find((m) => m.id === currentMerchantId) || {
             id: currentMerchantId,
             name: 'Custom Tenant',
             slug: 'custom',
@@ -228,35 +232,41 @@ export function ConsoleAppHeader({
 
                 {/* Right: Actions, API Status, Tenant, Operator Role Switcher */}
                 <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                    {/* API Connection Indicator */}
+                    {/* Live System Indicator */}
                     <div className="relative shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => onToggleApiSource(apiSource === 'live' ? 'mock' : 'live')}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors whitespace-nowrap shrink-0"
-                            title={`API Mode: ${apiSource === 'live' ? 'Live Backend API' : 'Sandbox Adapter'}. Click to toggle.`}
+                        <div
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-2.5 py-1.5 text-xs font-medium text-emerald-800 shadow-2xs whitespace-nowrap shrink-0"
+                            title="Connected to PostgreSQL & PayPal Live APIs"
                         >
                             <span className="relative flex size-2 shrink-0">
-                                {apiSource === 'live' && (
-                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                                )}
-                                <span
-                                    className={`relative inline-flex size-2 rounded-full ${
-                                        apiSource === 'live' ? 'bg-emerald-500' : 'bg-blue-500'
-                                    }`}
-                                />
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
                             </span>
-                            <span className="hidden sm:inline font-mono text-[11px]">
-                                {apiSource === 'live' ? 'Live' : 'Mock'}
+                            <span className="font-mono text-[11px] font-semibold text-emerald-700">
+                                Live API
                             </span>
-                        </button>
+                        </div>
                     </div>
 
                     {/* Quick Action Triggers */}
-                    {(onOpenOrderIngestion || onOpenReconciliation) && (
+                    {Boolean(onOpenOrderIngestion || onOpenReconciliation || onSyncPayPal) && (
                         <div className="flex items-center gap-1 shrink-0">
+                            {/* PayPal Live Sync Trigger */}
+                            {Boolean(onSyncPayPal) && (
+                                <button
+                                    type="button"
+                                    onClick={onSyncPayPal}
+                                    disabled={isSyncingPayPal}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-sky-200/80 bg-sky-50/70 px-2.5 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100/90 hover:border-sky-300 transition-colors shadow-2xs whitespace-nowrap shrink-0 disabled:opacity-50"
+                                    title="Fetch latest transactions from PayPal Transaction Search API"
+                                >
+                                    <Activity className={`size-3.5 shrink-0 text-sky-600 ${isSyncingPayPal ? 'animate-spin' : ''}`} />
+                                    <span className="hidden md:inline">{isSyncingPayPal ? 'Syncing...' : 'Sync PayPal'}</span>
+                                </button>
+                            )}
+
                             {/* Order Ingestion Trigger */}
-                            {onOpenOrderIngestion && (
+                            {Boolean(onOpenOrderIngestion) && (
                                 <button
                                     type="button"
                                     onClick={onOpenOrderIngestion}
@@ -269,7 +279,7 @@ export function ConsoleAppHeader({
                             )}
 
                             {/* Reconciliation Hub Trigger */}
-                            {onOpenReconciliation && (
+                            {Boolean(onOpenReconciliation) && (
                                 <button
                                     type="button"
                                     onClick={onOpenReconciliation}
@@ -315,7 +325,7 @@ export function ConsoleAppHeader({
                                         </span>
                                     </div>
                                     <div className="mt-1 space-y-0.5">
-                                        {(permittedMerchants.length > 0 ? permittedMerchants : SEEDED_MERCHANTS).map((m: { id: string; name: string; role?: string; slug?: string }) => (
+                                        {(permittedMerchants.length > 0 ? permittedMerchants : KNOWN_MERCHANTS).map((m: { id: string; name: string; role?: string; slug?: string }) => (
                                             <button
                                                 key={m.id}
                                                 type="button"

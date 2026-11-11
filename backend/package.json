@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "paypal:sync": "tsx src/cli/paypal-sync.ts",
+    "webhook:test": "tsx src/cli/test-webhook.ts",
     "outbox:worker": "tsx src/workers/run-worker.ts",
     "outbox:worker:start": "node dist/workers/run-worker.js",
     "recon:run": "tsx src/cli/recon-run.ts",

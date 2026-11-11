@@ -21,9 +21,18 @@ export function sanitizeError(error: unknown): SanitizedError {
     }
 
     if (error instanceof PayPalError) {
+        if (error.code === 'PAYPAL_FORBIDDEN') {
+            return {
+                code: error.code,
+                message:
+                    `PayPal 403 Forbidden: Transaction Search permission is not enabled on this app. Go to developer.paypal.com -> Apps & Credentials -> Select your Sandbox App -> App Settings / Features -> Enable "Transaction Search" and click Save. Detail: ${error.message}`,
+            };
+        }
+
         return {
             code: error.code,
             message:
+                error.message ||
                 'The PayPal request failed. Verify the sandbox credentials in .env and the requested window, then retry.',
         };
     }

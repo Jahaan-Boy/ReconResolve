@@ -46,15 +46,30 @@ export class HttpConnectionsApiClient {
         const queryString = params.toString();
         const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/connections${queryString ? `?${queryString}` : ''}`;
 
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-            },
-            credentials: 'same-origin',
-        });
+        try {
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                },
+                credentials: 'same-origin',
+            });
 
-        return this.handleResponse<ListConnectionsResult>(res);
+            return await this.handleResponse<ListConnectionsResult>(res);
+        } catch (err: unknown) {
+            const status = (err as { statusCode?: number; status?: number })?.statusCode ?? (err as { statusCode?: number; status?: number })?.status;
+            if (status === 404) {
+                return {
+                    items: [],
+                    pagination: {
+                        limit: filter?.limit ?? 20,
+                        nextCursor: null,
+                        hasMore: false,
+                    },
+                };
+            }
+            throw err;
+        }
     }
 
     async getConnection(merchantId: string, connectionId: string): Promise<ProviderConnectionDetail> {
@@ -67,6 +82,62 @@ export class HttpConnectionsApiClient {
             credentials: 'same-origin',
         });
         return this.handleResponse<ProviderConnectionDetail>(res);
+    }
+
+    async syncConnection(
+        merchantId: string,
+        connectionId?: string,
+        range?: { from?: string; to?: string },
+    ): Promise<{
+        status: string;
+        summary: {
+            fetched: number;
+            normalized: number;
+            inserted: number;
+            updated: number;
+            unchanged: number;
+            rejected: number;
+            rejectedCategories?: Record<string, number>;
+        };
+    }> {
+        const url = connectionId
+            ? `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/connections/${encodeURIComponent(connectionId)}/sync`
+            : `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/connections/sync`;
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(range || {}),
+        });
+
+        return this.handleResponse(res);
+    }
+
+    async simulateWebhook(
+        merchantId: string,
+        amount?: string,
+    ): Promise<{
+        status: string;
+        outcome: string;
+        webhookEventId: string;
+        eventId: string;
+    }> {
+        const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/connections/simulate-webhook`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ amount: amount || '57.00' }),
+        });
+
+        return this.handleResponse(res);
     }
 }
 

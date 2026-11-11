@@ -52,6 +52,7 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
     const [webhooksError, setWebhooksError] = useState<string | null>(null);
 
     const [replayingEventId, setReplayingEventId] = useState<string | null>(null);
+    const [syncingConnId, setSyncingConnId] = useState<string | null>(null);
     const [replayConfirmItem, setReplayConfirmItem] = useState<OutboxEventSummary | null>(null);
     const [replayFeedback, setReplayFeedback] = useState<ReplayFeedback | null>(null);
 
@@ -175,6 +176,50 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
             setReplayingEventId(null);
             setReplayConfirmItem(null);
             loadOperationsSummary(merchantId);
+        }
+    };
+
+    const handleSyncConn = async (connectionId: string) => {
+        setSyncingConnId(connectionId);
+        try {
+            const res = await connectionsApiClient.syncConnection(merchantId, connectionId);
+            setReplayFeedback({
+                type: 'success',
+                title: 'PayPal API Sync Successful',
+                message: `Fetched ${res.summary.fetched} record(s), inserted ${res.summary.inserted} into database.`,
+            });
+            loadConnections(merchantId);
+        } catch (err: unknown) {
+            setReplayFeedback({
+                type: 'error',
+                title: 'PayPal Sync Failed',
+                message: err instanceof Error ? err.message : 'Failed to query PayPal Transaction Search API',
+            });
+        } finally {
+            setSyncingConnId(null);
+        }
+    };
+
+    const [isSimulatingWebhook, setIsSimulatingWebhook] = useState(false);
+
+    const handleSimulateWebhook = async () => {
+        setIsSimulatingWebhook(true);
+        try {
+            const res = await connectionsApiClient.simulateWebhook(merchantId);
+            setReplayFeedback({
+                type: 'success',
+                title: 'PayPal Webhook Ingested',
+                message: `Captured simulated event ${res.eventId} (${res.outcome}). Stored in database table webhook_events.`,
+            });
+            await Promise.all([loadWebhooks(merchantId), loadOperationsSummary(merchantId)]);
+        } catch (err: unknown) {
+            setReplayFeedback({
+                type: 'error',
+                title: 'Webhook Simulation Failed',
+                message: err instanceof Error ? err.message : 'Failed to ingest test webhook event',
+            });
+        } finally {
+            setIsSimulatingWebhook(false);
         }
     };
 
@@ -342,6 +387,16 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
                                     <Lock className="size-3 text-slate-400" />
                                     <span>Client secrets securely held in backend runtime environment</span>
                                 </div>
+
+                                <button
+                                    type="button"
+                                    disabled={syncingConnId === conn.id}
+                                    onClick={() => handleSyncConn(conn.id)}
+                                    className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors shadow-2xs disabled:opacity-50"
+                                >
+                                    <RefreshCw className={`size-3.5 ${syncingConnId === conn.id ? 'animate-spin' : ''}`} />
+                                    <span>{syncingConnId === conn.id ? 'Syncing with PayPal...' : 'Sync Transactions from PayPal API'}</span>
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -361,15 +416,27 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
                         </div>
                         <h2 className="text-sm font-semibold text-slate-900">Recent Webhook Deliveries</h2>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => loadWebhooks(merchantId)}
-                        disabled={loadingWebhooks}
-                        className="text-xs text-slate-600 hover:text-slate-900 font-medium flex items-center gap-1 transition-colors"
-                    >
-                        <RefreshCw className={`size-3 text-slate-400 ${loadingWebhooks ? 'animate-spin' : ''}`} />
-                        <span>Refresh</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleSimulateWebhook}
+                            disabled={isSimulatingWebhook}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold shadow-2xs transition-colors disabled:opacity-50"
+                            title="Simulate incoming PayPal PAYMENT.CAPTURE.COMPLETED webhook event"
+                        >
+                            <Webhook className={`size-3.5 text-indigo-600 ${isSimulatingWebhook ? 'animate-spin' : ''}`} />
+                            <span>{isSimulatingWebhook ? 'Ingesting...' : 'Test Webhook Event'}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => loadWebhooks(merchantId)}
+                            disabled={loadingWebhooks}
+                            className="text-xs text-slate-600 hover:text-slate-900 font-medium flex items-center gap-1 transition-colors px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 shadow-2xs"
+                        >
+                            <RefreshCw className={`size-3 text-slate-400 ${loadingWebhooks ? 'animate-spin' : ''}`} />
+                            <span>Refresh</span>
+                        </button>
+                    </div>
                 </div>
 
                 {loadingWebhooks ? (

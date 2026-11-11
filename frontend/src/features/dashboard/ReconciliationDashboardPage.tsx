@@ -128,6 +128,7 @@ export function ReconciliationDashboardPage({
                 if (summaryResult.status === 'fulfilled') {
                     setSummaryData(summaryResult.value);
                     setLastUpdated(new Date());
+                    setError(null);
                 } else if (!isBackgroundRefresh) {
                     const message =
                         summaryResult.reason instanceof Error
@@ -136,8 +137,32 @@ export function ReconciliationDashboardPage({
                     setError(message);
                 }
 
-                if (runsResult.status === 'fulfilled') {
+                if (runsResult.status === 'fulfilled' && (runsResult.value.items || []).length > 0) {
                     setRecentRuns(runsResult.value.items || []);
+                } else if (summaryResult.status === 'fulfilled' && summaryResult.value.latestRun) {
+                    const latest = summaryResult.value.latestRun;
+                    setRecentRuns([
+                        {
+                            id: latest.id,
+                            merchantId: latest.merchantId,
+                            status: latest.status,
+                            windowStart: latest.windowStart,
+                            windowEnd: latest.windowEnd,
+                            rulesetVersion: latest.rulesetVersion,
+                            totalConsidered: latest.totalConsidered,
+                            matchedCount: latest.matchedCount,
+                            unmatchedCount: latest.unmatchedCount,
+                            ambiguousCount: latest.ambiguousCount,
+                            excludedCount: latest.excludedCount,
+                            eligibleConsidered: latest.eligibleConsidered,
+                            matchRatePercentage: latest.matchRatePercentage,
+                            durationMs: latest.durationMs,
+                            failureReason: latest.failureReason,
+                            startedAt: latest.startedAt,
+                            completedAt: latest.completedAt,
+                            createdAt: latest.createdAt,
+                        },
+                    ]);
                 }
 
                 if (exceptionsResult.status === 'fulfilled') {

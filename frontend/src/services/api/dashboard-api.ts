@@ -5,7 +5,6 @@ import {
     type DashboardSummaryResponse,
 } from './types';
 import { notifyUnauthorized } from './auth-api';
-import { MockDashboardApiClient } from './mock-exceptions-api';
 
 export class HttpDashboardApiClient implements DashboardApiClient {
     private readonly baseUrl: string;
@@ -49,45 +48,40 @@ export class HttpDashboardApiClient implements DashboardApiClient {
         const queryString = params.toString();
         const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/dashboard/summary${queryString ? `?${queryString}` : ''}`;
 
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-            },
-            credentials: 'same-origin',
-            signal,
-        });
-
-        return this.handleResponse<DashboardSummaryResponse>(res);
-    }
-}
-
-export class AdaptiveDashboardApiClient implements DashboardApiClient {
-    private readonly httpClient: HttpDashboardApiClient;
-    private readonly mockClient: MockDashboardApiClient;
-
-    constructor(baseUrl = '') {
-        this.httpClient = new HttpDashboardApiClient(baseUrl);
-        this.mockClient = new MockDashboardApiClient();
-    }
-
-    async getDashboardSummary(
-        merchantId: string,
-        filter?: DashboardDateRangeFilter,
-        signal?: AbortSignal,
-    ): Promise<DashboardSummaryResponse> {
         try {
-            return await this.httpClient.getDashboardSummary(merchantId, filter, signal);
-        } catch (err) {
-            if (
-                err instanceof TypeError ||
-                (err instanceof ApiClientError && err.statusCode === 404)
-            ) {
-                return await this.mockClient.getDashboardSummary(merchantId, filter);
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                },
+                credentials: 'same-origin',
+                signal,
+            });
+
+            return await this.handleResponse<DashboardSummaryResponse>(res);
+        } catch (err: unknown) {
+            const status = (err as { statusCode?: number; status?: number })?.statusCode ?? (err as { statusCode?: number; status?: number })?.status;
+            if (status === 404) {
+                // Initial clean state before runs have executed
+                return {
+                    summary: {
+                        reconciledRate: 0,
+                        reconciledAmountMinor: 0,
+                        unresolvedExposureMinor: 0,
+                        breakdown: {
+                            exactMatches: 0,
+                            partialMatches: 0,
+                            ruleBasedMatches: 0,
+                            discrepancies: 0,
+                        },
+                    },
+                    latestRun: null,
+                    recentRuns: [],
+                };
             }
             throw err;
         }
     }
 }
 
-export const dashboardApiClient: DashboardApiClient = new AdaptiveDashboardApiClient();
+export const dashboardApiClient: DashboardApiClient = new HttpDashboardApiClient();

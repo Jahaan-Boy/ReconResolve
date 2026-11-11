@@ -77,7 +77,9 @@ export function buildApp(deps?: AppDeps): Application {
     });
 
     // 2. Webhook router mounted BEFORE global express.json() to capture raw request bytes
-    app.use('/webhooks/paypal', createPayPalWebhookRouter(deps));
+    const paypalWebhookRouter = createPayPalWebhookRouter(deps);
+    app.use('/webhooks/paypal', paypalWebhookRouter);
+    app.use('/api/webhooks/paypal', paypalWebhookRouter);
 
     // 3. Global JSON parser for ordinary application endpoints with explicit 1MB bounded limit
     app.use(express.json({ limit: '1mb' }));

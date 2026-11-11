@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { createReconciliationRepository } from '../repositories/reconciliation.repository';
 import { ReconciliationError } from '../services/reconciliation/errors';

@@ -177,8 +177,15 @@ export class PayPalTransactionClient {
             }
 
             if (response.status === 403) {
+                let detail = '';
+                try {
+                    const parsed = await response.json();
+                    detail = typeof parsed === 'object' && parsed !== null ? JSON.stringify(parsed) : String(parsed);
+                } catch {
+                    // ignore
+                }
                 throw PayPalError.forbidden(
-                    'Insufficient permissions for Transaction Search (403)',
+                    `Insufficient permissions for Transaction Search (403)${detail ? `: ${detail}` : ''}`,
                 );
             }
 

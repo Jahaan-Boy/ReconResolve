@@ -18,6 +18,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
         const response = await fetch(`${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/summary`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
             signal,
         });
 
@@ -48,6 +49,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
             },
         );
 
@@ -59,7 +61,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
                 // non-json
             }
             throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
+                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'REPLAY_ERROR',
                 typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to replay outbox event',
                 response.status,
                 errorBody['details'],
@@ -71,15 +73,14 @@ export class HttpOperationsApiClient implements OperationsApiClient {
 
     async getRecentWebhooks(
         merchantId: string,
-        limit = 25,
-        signal?: AbortSignal,
+        limit = 20,
     ): Promise<{ items: WebhookEventRecord[] }> {
         const response = await fetch(
             `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/webhooks?limit=${limit}`,
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
-                signal,
+                credentials: 'same-origin',
             },
         );
 
@@ -91,8 +92,8 @@ export class HttpOperationsApiClient implements OperationsApiClient {
                 // non-json
             }
             throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
-                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch webhooks',
+                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'WEBHOOKS_ERROR',
+                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch recent webhooks',
                 response.status,
                 errorBody['details'],
             );
@@ -104,14 +105,13 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     async getEventTimeline(
         merchantId: string,
         eventId: string,
-        signal?: AbortSignal,
     ): Promise<EventTimelineResult> {
         const response = await fetch(
             `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/events/${encodeURIComponent(eventId)}/timeline`,
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
-                signal,
+                credentials: 'same-origin',
             },
         );
 
@@ -123,7 +123,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
                 // non-json
             }
             throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
+                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'TIMELINE_ERROR',
                 typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch event timeline',
                 response.status,
                 errorBody['details'],
@@ -134,93 +134,4 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     }
 }
 
-export class MockOperationsApiClient implements OperationsApiClient {
-    async getOperationsSummary(merchantId: string): Promise<OperationsSummary> {
-        return {
-            merchantId,
-            generatedAt: new Date().toISOString(),
-            pipelineHealth: 'HEALTHY',
-            outbox: {
-                pendingCount: 0,
-                processingCount: 0,
-                failedCount: 0,
-                dispatchedCount: 142,
-                oldestPendingAgeMs: 0,
-                deadLetterCount: 0,
-            },
-            reconciliation: {
-                latestRunStatus: 'COMPLETED',
-                latestRunId: 'mock-run-001',
-                failedRunsCount: 0,
-                recentAmbiguousCount: 2,
-            },
-            investigations: {
-                totalInvestigationsCount: 5,
-                recentFailedCount: 0,
-            },
-            deadLetterQueue: [],
-        };
-    }
-
-    async replayOutboxEvent(
-        _merchantId: string,
-        eventId: string,
-    ): Promise<ReplayOutboxEventResult> {
-        return {
-            outcome: 'replayed',
-            eventId,
-            status: 'PENDING',
-            replayedAt: new Date().toISOString(),
-            replayedBy: 'mock-operator',
-        };
-    }
-
-    async getRecentWebhooks(): Promise<{ items: WebhookEventRecord[] }> {
-        return {
-            items: [
-                {
-                    id: 'mock-wh-1',
-                    merchantId: 'mock-merchant-001',
-                    provider: 'PAYPAL',
-                    providerConnectionId: 'mock-conn-001',
-                    providerEventId: 'WH-89X-001',
-                    eventType: 'PAYMENT.CAPTURE.COMPLETED',
-                    resourceType: 'capture',
-                    transmissionId: 'trans-mock-001',
-                    transmissionTime: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-                    verifiedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-                    receivedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-                    processingStatus: 'PROCESSED',
-                },
-            ],
-        };
-    }
-
-    async getEventTimeline(merchantId: string, eventId: string): Promise<EventTimelineResult> {
-        return {
-            merchantId,
-            rootEventId: eventId,
-            generatedAt: new Date().toISOString(),
-            steps: [
-                {
-                    step: 'webhook_received',
-                    title: 'Webhook Received & Verified',
-                    status: 'success',
-                    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-                    entityId: 'mock-wh-1',
-                    summary: 'PayPal webhook verified successfully.',
-                },
-                {
-                    step: 'outbox_dispatched',
-                    title: 'Transactional Outbox Dispatch',
-                    status: 'success',
-                    timestamp: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
-                    entityId: eventId,
-                    summary: 'Outbox event dispatched cleanly.',
-                },
-            ],
-        };
-    }
-}
-
-export const operationsApiClient = new HttpOperationsApiClient();
+export const operationsApiClient: OperationsApiClient = new HttpOperationsApiClient();

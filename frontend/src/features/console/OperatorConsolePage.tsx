@@ -5,6 +5,7 @@ import {
     RefreshCw,
     X,
 } from 'lucide-react';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { ConsoleAppHeader, type ConsoleView } from './ConsoleAppHeader';
 import { ExceptionQueue } from './ExceptionQueue';
 import { ExceptionInspector } from './ExceptionInspector';
@@ -18,6 +19,7 @@ import { IntegrationsOperationsPage } from '@/features/operations/IntegrationsOp
 import { AuthModal } from '@/features/auth/AuthModal';
 import { useConsoleKeyboardShortcuts } from '@/hooks/useConsoleKeyboardShortcuts';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
+import { connectionsApiClient } from '@/services/api/connections-api';
 import {
     authApiClient,
     subscribeUnauthorized,
@@ -25,7 +27,7 @@ import {
     type PermittedMerchant,
     type AuthSessionData,
 } from '@/services/api/auth-api';
-import { DEFAULT_MERCHANT_ID, SEEDED_MERCHANTS } from '@/services/api/mock-exceptions-api';
+import { DEFAULT_MERCHANT_ID, KNOWN_MERCHANTS } from '@/config/merchants';
 import {
     ApiClientError,
     ConcurrencyConflictError,
@@ -199,6 +201,28 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         setSelectedReconRunId(null);
         addToast('info', 'Logged out successfully');
     };
+
+    const [isSyncingPayPal, setIsSyncingPayPal] = useState(false);
+
+    const handleSyncPayPal = useCallback(async () => {
+        setIsSyncingPayPal(true);
+        try {
+            const res = await connectionsApiClient.syncConnection(merchantId);
+            const summary = res.summary;
+            addToast(
+                'success',
+                `PayPal Sync complete: ${summary.fetched} fetched, ${summary.inserted} inserted into database.`,
+            );
+            loadStatusCounts(merchantId);
+        } catch (err: unknown) {
+            addToast(
+                'error',
+                `PayPal Sync failed: ${err instanceof Error ? err.message : 'Check credentials and try again.'}`,
+            );
+        } finally {
+            setIsSyncingPayPal(false);
+        }
+    }, [merchantId, addToast]);
 
     // Fetch global status counts across all exceptions for current merchant
     const loadStatusCounts = useCallback(
@@ -575,37 +599,41 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
 
     const currentMerchantName =
         permittedMerchants.find((m) => m.id === merchantId)?.name ||
-        SEEDED_MERCHANTS.find((m) => m.id === merchantId)?.name ||
+        KNOWN_MERCHANTS.find((m) => m.id === merchantId)?.name ||
         'Custom Tenant';
 
     const currentMerchantSlug =
         // permittedMerchants.find((m) => m.id === merchantId)?.slug ||
-        SEEDED_MERCHANTS.find((m) => m.id === merchantId)?.slug ||
+        KNOWN_MERCHANTS.find((m) => m.id === merchantId)?.slug ||
         'merchant';
 
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans text-slate-900">
             {/* Top Shared Header */}
-            <ConsoleAppHeader
-                currentMerchantId={merchantId}
-                onSelectMerchant={handleSelectMerchant}
-                operatorContext={operatorContext}
-                onUpdateOperatorContext={setOperatorContext}
-                currentUser={currentUser}
-                permittedMerchants={permittedMerchants}
-                onOpenAuthModal={() => setIsAuthModalOpen(true)}
-                onLogout={handleLogout}
-                apiSource={apiSource}
-                onToggleApiSource={(src) => adaptiveApiClient.setSource(src)}
-                onNavigateLanding={onNavigateLanding}
-                onOpenOrderIngestion={() => setIsOrderModalOpen(true)}
-                activeView={consoleView}
-                onChangeView={setConsoleView}
-                onOpenReconciliation={() => {
-                    setSelectedReconRunId(null);
-                    setIsReconModalOpen(true);
-                }}
-            />
+            <ErrorBoundary fallbackTitle="Header Navigation">
+                <ConsoleAppHeader
+                    currentMerchantId={merchantId}
+                    onSelectMerchant={handleSelectMerchant}
+                    operatorContext={operatorContext}
+                    onUpdateOperatorContext={setOperatorContext}
+                    currentUser={currentUser}
+                    permittedMerchants={permittedMerchants}
+                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                    onLogout={handleLogout}
+                    apiSource={apiSource}
+                    onToggleApiSource={(src) => adaptiveApiClient.setSource(src)}
+                    onNavigateLanding={onNavigateLanding}
+                    onSyncPayPal={handleSyncPayPal}
+                    isSyncingPayPal={isSyncingPayPal}
+                    onOpenOrderIngestion={() => setIsOrderModalOpen(true)}
+                    activeView={consoleView}
+                    onChangeView={setConsoleView}
+                    onOpenReconciliation={() => {
+                        setSelectedReconRunId(null);
+                        setIsReconModalOpen(true);
+                    }}
+                />
+            </ErrorBoundary>
 
             {/* Workbench Body */}
             <main className="flex-1 min-h-0 h-full overflow-hidden flex flex-col">

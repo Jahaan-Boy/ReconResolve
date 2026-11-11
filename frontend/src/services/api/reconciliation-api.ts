@@ -65,15 +65,30 @@ export class HttpReconciliationApiClient {
         const queryString = params.toString();
         const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/runs${queryString ? `?${queryString}` : ''}`;
 
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-            },
-            credentials: 'same-origin',
-        });
+        try {
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                },
+                credentials: 'same-origin',
+            });
 
-        return this.handleResponse<ListRunsResult>(res);
+            return await this.handleResponse<ListRunsResult>(res);
+        } catch (err: unknown) {
+            const status = (err as { statusCode?: number; status?: number })?.statusCode ?? (err as { statusCode?: number; status?: number })?.status;
+            if (status === 404) {
+                return {
+                    items: [],
+                    pagination: {
+                        limit: filter?.limit ?? 20,
+                        nextCursor: null,
+                        hasMore: false,
+                    },
+                };
+            }
+            throw err;
+        }
     }
 
     async getRun(merchantId: string, runId: string): Promise<ReconciliationRunSummary> {
@@ -94,22 +109,37 @@ export class HttpReconciliationApiClient {
         filter?: ListMatchesFilter,
     ): Promise<ListMatchesResult> {
         const params = new URLSearchParams();
-        if (filter?.ruleCode) params.set('ruleCode', filter.ruleCode);
+        if (filter?.rule) params.set('rule', filter.rule);
         if (filter?.cursor) params.set('cursor', filter.cursor);
         if (filter?.limit) params.set('limit', String(filter.limit));
 
         const queryString = params.toString();
         const url = `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/runs/${encodeURIComponent(runId)}/matches${queryString ? `?${queryString}` : ''}`;
 
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-            },
-            credentials: 'same-origin',
-        });
+        try {
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    Accept: 'application/json',
+                },
+                credentials: 'same-origin',
+            });
 
-        return this.handleResponse<ListMatchesResult>(res);
+            return await this.handleResponse<ListMatchesResult>(res);
+        } catch (err: unknown) {
+            const status = (err as { statusCode?: number; status?: number })?.statusCode ?? (err as { statusCode?: number; status?: number })?.status;
+            if (status === 404) {
+                return {
+                    items: [],
+                    pagination: {
+                        limit: filter?.limit ?? 25,
+                        nextCursor: null,
+                        hasMore: false,
+                    },
+                };
+            }
+            throw err;
+        }
     }
 }
 

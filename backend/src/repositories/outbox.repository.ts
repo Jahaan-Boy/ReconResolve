@@ -59,41 +59,57 @@ export function createOutboxRepository(db: OutboxDb): OutboxRepository {
 
             const expiredBefore = new Date(now.getTime() - leaseDurationMs);
 
-            const rows = await db.$queryRaw<RawOutboxRow[]>`
-                WITH eligible AS (
-                    SELECT id FROM "outbox_events"
-                    WHERE
-                        ("status" = 'PENDING'::"OutboxStatus" AND "available_at" <= ${now})
-                        OR
-                        ("status" = 'PROCESSING'::"OutboxStatus" AND "locked_at" <= ${expiredBefore})
-                    ORDER BY "created_at" ASC, "id" ASC
-                    LIMIT ${batchSize}
-                    FOR UPDATE SKIP LOCKED
-                )
-                UPDATE "outbox_events"
-                SET
-                    "status" = 'PROCESSING'::"OutboxStatus",
-                    "claim_token" = ${claimToken},
-                    "locked_at" = ${now},
-                    "attempt_count" = "attempt_count" + 1,
-                    "updated_at" = ${now}
-                FROM eligible
-                WHERE "outbox_events"."id" = eligible.id
-                RETURNING
-                    "outbox_events"."id",
-                    "outbox_events"."merchant_id" AS "merchantId",
-                    "outbox_events"."aggregate_type" AS "aggregateType",
-                    "outbox_events"."aggregate_id" AS "aggregateId",
-                    "outbox_events"."event_type" AS "eventType",
-                    "outbox_events"."payload",
-                    "outbox_events"."status",
-                    "outbox_events"."attempt_count" AS "attemptCount",
-                    "outbox_events"."claim_token" AS "claimToken",
-                    "outbox_events"."locked_at" AS "lockedAt",
-                    "outbox_events"."available_at" AS "availableAt",
-                    "outbox_events"."dispatched_at" AS "dispatchedAt",
-                    "outbox_events"."created_at" AS "createdAt";
-            `;
+            const executeClaim = async () => {
+                return await db.$queryRaw<RawOutboxRow[]>`
+                    WITH eligible AS (
+                        SELECT id FROM "outbox_events"
+                        WHERE
+                            ("status" = 'PENDING'::"OutboxStatus" AND "available_at" <= ${now})
+                            OR
+                            ("status" = 'PROCESSING'::"OutboxStatus" AND "locked_at" <= ${expiredBefore})
+                        ORDER BY "created_at" ASC, "id" ASC
+                        LIMIT ${batchSize}
+                        FOR UPDATE SKIP LOCKED
+                    )
+                    UPDATE "outbox_events"
+                    SET
+                        "status" = 'PROCESSING'::"OutboxStatus",
+                        "claim_token" = ${claimToken},
+                        "locked_at" = ${now},
+                        "attempt_count" = "attempt_count" + 1,
+                        "updated_at" = ${now}
+                    FROM eligible
+                    WHERE "outbox_events"."id" = eligible.id
+                    RETURNING
+                        "outbox_events"."id",
+                        "outbox_events"."merchant_id" AS "merchantId",
+                        "outbox_events"."aggregate_type" AS "aggregateType",
+                        "outbox_events"."aggregate_id" AS "aggregateId",
+                        "outbox_events"."event_type" AS "eventType",
+                        "outbox_events"."payload",
+                        "outbox_events"."status",
+                        "outbox_events"."attempt_count" AS "attemptCount",
+                        "outbox_events"."claim_token" AS "claimToken",
+                        "outbox_events"."locked_at" AS "lockedAt",
+                        "outbox_events"."available_at" AS "availableAt",
+                        "outbox_events"."dispatched_at" AS "dispatchedAt",
+                        "outbox_events"."created_at" AS "createdAt";
+                `;
+            };
+
+            let rows: RawOutboxRow[];
+            try {
+                rows = await executeClaim();
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                if (message.includes('0A000') || message.includes('cached plan')) {
+                    // Stale prepared plan in pooled connection after table recreate/reset; flush plan cache and retry
+                    await db.$executeRaw`DEALLOCATE ALL;`.catch(() => undefined);
+                    rows = await executeClaim();
+                } else {
+                    throw err;
+                }
+            }
 
             if (!Array.isArray(rows)) {
                 return [];
