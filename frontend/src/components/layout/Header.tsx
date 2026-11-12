@@ -61,6 +61,9 @@ export function Header({ links, onNavigateConsole }: HeaderProps) {
                         <button
                             type="button"
                             onClick={onNavigateConsole}
+                            onMouseEnter={() => {
+                                import('@/features/console/OperatorConsolePage');
+                            }}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-steel-200 bg-white px-3 py-2 text-xs font-semibold text-steel-800 shadow-2xs hover:bg-steel-50 hover:text-accent-600 transition-colors cursor-pointer"
                         >
                             <Shield className="size-3.5 text-accent-600" />

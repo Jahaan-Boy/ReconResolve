@@ -41,6 +41,7 @@ interface ConsoleAppHeaderProps {
     isSyncingPayPal?: boolean;
     activeView?: ConsoleView;
     onChangeView?: (view: ConsoleView) => void;
+    onPrefetchView?: (view: ConsoleView) => void;
 }
 
 const NAV_TABS = [
@@ -65,8 +66,8 @@ export function ConsoleAppHeader({
     permittedMerchants,
     onOpenAuthModal,
     onLogout,
-    apiSource,
-    onToggleApiSource,
+    apiSource: _apiSource,
+    onToggleApiSource: _onToggleApiSource,
     onNavigateLanding,
     onOpenOrderIngestion,
     onOpenReconciliation,
@@ -74,6 +75,7 @@ export function ConsoleAppHeader({
     isSyncingPayPal = false,
     activeView = 'workbench',
     onChangeView,
+    onPrefetchView,
 }: ConsoleAppHeaderProps) {
     const [merchantMenuOpen, setMerchantMenuOpen] = useState(false);
     const [operatorMenuOpen, setOperatorMenuOpen] = useState(false);
@@ -145,6 +147,7 @@ export function ConsoleAppHeader({
                                         role="tab"
                                         aria-selected={isActive}
                                         onClick={() => onChangeView(tab.id)}
+                                        onMouseEnter={() => onPrefetchView?.(tab.id)}
                                         className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 ${
                                             isActive
                                                 ? 'bg-white text-fin-brand shadow-xs border border-slate-200/60'
@@ -205,6 +208,7 @@ export function ConsoleAppHeader({
                                                         onChangeView(tab.id);
                                                         setMobileNavOpen(false);
                                                     }}
+                                                    onMouseEnter={() => onPrefetchView?.(tab.id)}
                                                     className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors ${
                                                         isCurrent
                                                             ? 'bg-fin-brand/10 font-semibold text-fin-brand'

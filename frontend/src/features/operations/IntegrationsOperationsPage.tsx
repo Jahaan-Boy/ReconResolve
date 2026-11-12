@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { operationsApiClient } from '@/services/api/operations-api';
 import { connectionsApiClient } from '@/services/api/connections-api';
+import { queryCache } from '@/services/api/cache';
 import {
     ApiClientError,
     type ProviderConnectionSummary as ConnectionItem,
@@ -65,7 +66,13 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
     const reqIdRef = useRef(0);
 
     const loadConnections = useCallback(async (mId: string) => {
-        setLoadingConn(true);
+        const cached = queryCache.get<{ items: ConnectionItem[] }>(`connections:list:${mId}:{}`);
+        if (cached) {
+            setConnections(cached.items || []);
+            setLoadingConn(false);
+        } else {
+            setLoadingConn(true);
+        }
         setConnError(null);
         try {
             const res = await connectionsApiClient.listConnections(mId);
@@ -78,7 +85,13 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
     }, []);
 
     const loadOperationsSummary = useCallback(async (mId: string) => {
-        setLoadingOps(true);
+        const cached = queryCache.get<OperationsSummary>(`operations:summary:${mId}`);
+        if (cached) {
+            setOperationsSummary(cached);
+            setLoadingOps(false);
+        } else {
+            setLoadingOps(true);
+        }
         setOpsError(null);
         try {
             const res = await operationsApiClient.getOperationsSummary(mId);
@@ -91,7 +104,13 @@ export function IntegrationsOperationsPage({ merchantId }: IntegrationsOperation
     }, []);
 
     const loadWebhooks = useCallback(async (mId: string) => {
-        setLoadingWebhooks(true);
+        const cached = queryCache.get<{ items: WebhookEventItem[] }>(`operations:webhooks:${mId}:20`);
+        if (cached) {
+            setWebhooks(cached.items || []);
+            setLoadingWebhooks(false);
+        } else {
+            setLoadingWebhooks(true);
+        }
         setWebhooksError(null);
         try {
             const res = await operationsApiClient.getRecentWebhooks(mId);

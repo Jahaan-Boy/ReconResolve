@@ -154,13 +154,11 @@ export function ReconciliationDashboardPage({
                             unmatchedCount: latest.unmatchedCount,
                             ambiguousCount: latest.ambiguousCount,
                             excludedCount: latest.excludedCount,
-                            eligibleConsidered: latest.eligibleConsidered,
-                            matchRatePercentage: latest.matchRatePercentage,
-                            durationMs: latest.durationMs,
-                            failureReason: latest.failureReason,
-                            startedAt: latest.startedAt,
-                            completedAt: latest.completedAt,
+                            failureReason: latest.failureReason ?? null,
+                            startedAt: latest.startedAt ?? null,
+                            completedAt: latest.completedAt ?? null,
                             createdAt: latest.createdAt,
+                            updatedAt: latest.completedAt || latest.createdAt,
                         },
                     ]);
                 }
@@ -187,22 +185,31 @@ export function ReconciliationDashboardPage({
         [],
     );
 
+    const prevMerchantRef = useRef(merchantId);
+
     // Initial load and instant state masking on merchant tenant change
     useEffect(() => {
-        // Strict boundary: immediately wipe prior merchant metrics so they never leak across tenants
-        setSummaryData(null);
-        setRecentRuns([]);
-        setOpenExceptions([]);
-        setError(null);
+        const isMerchantChanged = prevMerchantRef.current !== merchantId;
+        prevMerchantRef.current = merchantId;
 
-        loadDashboardData(merchantId, selectedPreset, false);
+        if (isMerchantChanged) {
+            // Strict boundary: immediately wipe prior merchant metrics so they never leak across tenants
+            setSummaryData(null);
+            setRecentRuns([]);
+            setOpenExceptions([]);
+            setError(null);
+            loadDashboardData(merchantId, selectedPreset, false);
+        } else {
+            // Preset change within same tenant: SWR refresh without screen-wiping skeleton
+            loadDashboardData(merchantId, selectedPreset, summaryData !== null);
+        }
 
         return () => {
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
         };
-    }, [merchantId, selectedPreset, loadDashboardData]);
+    }, [merchantId, selectedPreset, loadDashboardData, summaryData]);
 
     const handleRefresh = () => {
         loadDashboardData(merchantId, selectedPreset, true);

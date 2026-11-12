@@ -1,40 +1,44 @@
 import { fileURLToPath, URL } from 'node:url';
-import fs from 'node:fs';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig } from 'vite';
 
 const srcDir = fileURLToPath(new URL('./src', import.meta.url));
-const nodeModulesDir = fileURLToPath(new URL('./node_modules', import.meta.url));
-const hasAgGridInstalled = fs.existsSync(path.join(nodeModulesDir, 'ag-grid-react'));
-
-function agGridFallbackPlugin(): Plugin {
-  return {
-    name: 'ag-grid-fallback',
-    enforce: 'pre',
-    resolveId(id) {
-      if (!hasAgGridInstalled) {
-        if (id === 'ag-grid-react') {
-          return path.join(srcDir, 'shims', 'ag-grid-react.tsx');
-        }
-        if (id === 'ag-grid-community') {
-          return path.join(srcDir, 'shims', 'ag-grid-community.ts');
-        }
-        if (id.startsWith('ag-grid-community/styles/')) {
-          return path.join(srcDir, 'shims', 'empty.css');
-        }
-      }
-      return null;
-    },
-  };
-}
 
 export default defineConfig({
-  plugins: [agGridFallbackPlugin(), react(), tailwindcss()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@': srcDir,
+      'ag-grid-react': path.join(srcDir, 'shims', 'ag-grid-react.tsx'),
+      'ag-grid-community': path.join(srcDir, 'shims', 'ag-grid-community.ts'),
+      'ag-grid-community/styles/ag-grid.css': path.join(srcDir, 'shims', 'empty.css'),
+      'ag-grid-community/styles/ag-theme-quartz.css': path.join(srcDir, 'shims', 'empty.css'),
+    },
+  },
+  build: {
+    target: 'esnext',
+    cssCodeSplit: true,
+    minify: 'esbuild',
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react/') || id.includes('react-dom/')) {
+              return 'vendor-react';
+            }
+            if (id.includes('motion/')) {
+              return 'vendor-motion';
+            }
+            if (id.includes('lucide-react/')) {
+              return 'vendor-icons';
+            }
+          }
+        },
+      },
     },
   },
   server: {

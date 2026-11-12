@@ -25,7 +25,9 @@ import {
     type PrioritizedException,
     type PatternGroup,
     type RecurringPatternTrend,
+    type CurrencyExposure,
 } from '@/services/api/intelligence-api';
+import { queryCache } from '@/services/api/cache';
 
 export interface PortfolioIntelligencePageProps {
     merchantId: string;
@@ -56,7 +58,13 @@ export function PortfolioIntelligencePage({
     const loadSnapshot = useCallback(
         async (targetMerchantId: string, targetWindow: PortfolioWindow) => {
             const currentReqId = ++requestIdRef.current;
-            setLoading(true);
+            const cached = queryCache.get<PortfolioIntelligenceResult>(`intelligence:portfolio:${targetMerchantId}:${targetWindow}`);
+            if (cached) {
+                setSnapshotData(cached);
+                setLoading(false);
+            } else {
+                setLoading(true);
+            }
             setError(null);
 
             try {
@@ -80,7 +88,13 @@ export function PortfolioIntelligencePage({
     const loadTrends = useCallback(
         async (targetMerchantId: string, targetTrendWindow: TrendWindow) => {
             const currentReqId = ++requestIdRef.current;
-            setLoading(true);
+            const cached = queryCache.get<PortfolioTrendsResult>(`intelligence:trends:${targetMerchantId}:${targetTrendWindow}`);
+            if (cached) {
+                setTrendsData(cached);
+                setLoading(false);
+            } else {
+                setLoading(true);
+            }
             setError(null);
 
             try {
@@ -700,7 +714,7 @@ export function PortfolioIntelligencePage({
                                             <div className="font-mono text-emerald-700 font-semibold">
                                                 {Object.values(pat.exposureByCurrency).length > 0
                                                     ? Object.values(pat.exposureByCurrency)
-                                                          .map((e) => e.formatted)
+                                                          .map((e: CurrencyExposure) => e.formatted)
                                                           .join(' + ')
                                                     : 'No financial record'}
                                             </div>
@@ -731,7 +745,7 @@ export function PortfolioIntelligencePage({
                         <div className="rounded-xl border border-slate-200/80 bg-white/80 p-4 text-xs text-slate-500 space-y-1.5 shadow-2xs">
                             <div className="font-semibold text-slate-700 text-xs">Data Limitations & Guarantees:</div>
                             <ul className="list-disc list-inside space-y-0.5 text-slate-500 text-[11px]">
-                                {trendsData.dataLimitations.map((lim, idx) => (
+                                {trendsData.dataLimitations.map((lim: string, idx: number) => (
                                     <li key={idx}>{lim}</li>
                                 ))}
                             </ul>

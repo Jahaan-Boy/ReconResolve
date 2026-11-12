@@ -6,6 +6,7 @@ import type {
     ReplayOutboxEventResult,
     WebhookEventRecord,
 } from './types';
+import { queryCache } from './cache';
 
 export class HttpOperationsApiClient implements OperationsApiClient {
     private readonly baseUrl: string;
@@ -15,29 +16,40 @@ export class HttpOperationsApiClient implements OperationsApiClient {
     }
 
     async getOperationsSummary(merchantId: string, signal?: AbortSignal): Promise<OperationsSummary> {
-        const response = await fetch(`${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/summary`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            signal,
-        });
+        const cacheKey = `operations:summary:${merchantId}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const response = await fetch(`${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/summary`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    signal,
+                });
 
-        if (!response.ok) {
-            let errorBody: Record<string, unknown> = {};
-            try {
-                errorBody = (await response.json()) as Record<string, unknown>;
-            } catch {
-                // non-json
-            }
-            throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
-                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch operations summary',
-                response.status,
-                errorBody['details'],
-            );
-        }
+                if (!response.ok) {
+                    let errorBody: Record<string, unknown> = {};
+                    try {
+                        errorBody = (await response.json()) as Record<string, unknown>;
+                    } catch {
+                        // non-json
+                    }
+                    throw new ApiClientError(
+                        typeof errorBody['error'] === 'string' ? errorBody['error'] : 'OPERATIONS_ERROR',
+                        typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch operations summary',
+                        response.status,
+                        errorBody['details'],
+                    );
+                }
 
-        return await response.json();
+                return await response.json();
+            },
+            {
+                ttl: 30_000,
+                staleTtl: 120_000,
+                tags: [`operations:${merchantId}`],
+            },
+        );
     }
 
     async replayOutboxEvent(
@@ -68,69 +80,93 @@ export class HttpOperationsApiClient implements OperationsApiClient {
             );
         }
 
-        return await response.json();
+        const result = await response.json();
+        queryCache.invalidateTag(`operations:${merchantId}`);
+        return result;
     }
 
     async getRecentWebhooks(
         merchantId: string,
         limit = 20,
     ): Promise<{ items: WebhookEventRecord[] }> {
-        const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/webhooks?limit=${limit}`,
+        const cacheKey = `operations:webhooks:${merchantId}:${limit}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/webhooks?limit=${limit}`,
+                    {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                    },
+                );
+
+                if (!response.ok) {
+                    let errorBody: Record<string, unknown> = {};
+                    try {
+                        errorBody = (await response.json()) as Record<string, unknown>;
+                    } catch {
+                        // non-json
+                    }
+                    throw new ApiClientError(
+                        typeof errorBody['error'] === 'string' ? errorBody['error'] : 'WEBHOOKS_ERROR',
+                        typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch recent webhooks',
+                        response.status,
+                        errorBody['details'],
+                    );
+                }
+
+                return await response.json();
+            },
             {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                ttl: 30_000,
+                staleTtl: 120_000,
+                tags: [`operations:${merchantId}`],
             },
         );
-
-        if (!response.ok) {
-            let errorBody: Record<string, unknown> = {};
-            try {
-                errorBody = (await response.json()) as Record<string, unknown>;
-            } catch {
-                // non-json
-            }
-            throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'WEBHOOKS_ERROR',
-                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch recent webhooks',
-                response.status,
-                errorBody['details'],
-            );
-        }
-
-        return await response.json();
     }
 
     async getEventTimeline(
         merchantId: string,
         eventId: string,
     ): Promise<EventTimelineResult> {
-        const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/events/${encodeURIComponent(eventId)}/timeline`,
+        const cacheKey = `operations:timeline:${merchantId}:${eventId}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/events/${encodeURIComponent(eventId)}/timeline`,
+                    {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                    },
+                );
+
+                if (!response.ok) {
+                    let errorBody: Record<string, unknown> = {};
+                    try {
+                        errorBody = (await response.json()) as Record<string, unknown>;
+                    } catch {
+                        // non-json
+                    }
+                    throw new ApiClientError(
+                        typeof errorBody['error'] === 'string' ? errorBody['error'] : 'TIMELINE_ERROR',
+                        typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch event timeline',
+                        response.status,
+                        errorBody['details'],
+                    );
+                }
+
+                return await response.json();
+            },
             {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                ttl: 60_000,
+                staleTtl: 300_000,
+                tags: [`operations:${merchantId}`],
             },
         );
-
-        if (!response.ok) {
-            let errorBody: Record<string, unknown> = {};
-            try {
-                errorBody = (await response.json()) as Record<string, unknown>;
-            } catch {
-                // non-json
-            }
-            throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'TIMELINE_ERROR',
-                typeof errorBody['message'] === 'string' ? errorBody['message'] : 'Failed to fetch event timeline',
-                response.status,
-                errorBody['details'],
-            );
-        }
-
-        return await response.json();
     }
 }
 

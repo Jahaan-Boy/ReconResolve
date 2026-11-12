@@ -34,10 +34,18 @@ function PageFallback() {
 
 export default function App() {
     const [view, setView] = useState<AppView>(getInitialView);
+    const [visitedViews, setVisitedViews] = useState<Set<AppView>>(() => new Set([getInitialView()]));
 
     useEffect(() => {
         const handleLocationChange = () => {
-            setView(getInitialView());
+            const next = getInitialView();
+            setView(next);
+            setVisitedViews((prev) => {
+                if (prev.has(next)) return prev;
+                const updated = new Set(prev);
+                updated.add(next);
+                return updated;
+            });
         };
 
         window.addEventListener('popstate', handleLocationChange);
@@ -50,6 +58,12 @@ export default function App() {
 
     const navigateTo = (nextView: AppView) => {
         setView(nextView);
+        setVisitedViews((prev) => {
+            if (prev.has(nextView)) return prev;
+            const updated = new Set(prev);
+            updated.add(nextView);
+            return updated;
+        });
         if (nextView === 'console') {
             window.history.pushState({}, '', '/console');
         } else {
@@ -58,15 +72,41 @@ export default function App() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // Idle prefetching for OperatorConsolePage when on Landing Page
+    useEffect(() => {
+        if (!visitedViews.has('console')) {
+            const prefetchConsole = () => {
+                import('@/features/console/OperatorConsolePage');
+            };
+            if ('requestIdleCallback' in window) {
+                const idleId = (window as unknown as { requestIdleCallback: (cb: () => void, opts: { timeout: number }) => number }).requestIdleCallback(
+                    prefetchConsole,
+                    { timeout: 1500 },
+                );
+                return () => {
+                    (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
+                };
+            } else {
+                const timer = setTimeout(prefetchConsole, 1000);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [visitedViews]);
+
     return (
         <MotionConfig reducedMotion="user">
             <ErrorBoundary fallbackTitle="Application View">
                 <Suspense fallback={<PageFallback />}>
-                    {view === 'console' ? (
-                        <OperatorConsolePage onNavigateLanding={() => navigateTo('landing')} />
-                    ) : (
-                        <LandingPage onNavigateConsole={() => navigateTo('console')} />
-                    )}
+                    <div className={view === 'console' ? 'contents' : 'hidden'}>
+                        {visitedViews.has('console') && (
+                            <OperatorConsolePage onNavigateLanding={() => navigateTo('landing')} />
+                        )}
+                    </div>
+                    <div className={view === 'landing' ? 'contents' : 'hidden'}>
+                        {visitedViews.has('landing') && (
+                            <LandingPage onNavigateConsole={() => navigateTo('console')} />
+                        )}
+                    </div>
                 </Suspense>
             </ErrorBoundary>
         </MotionConfig>

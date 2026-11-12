@@ -10,13 +10,22 @@ export function HeroBackdrop() {
     useEffect(() => {
         const element = ref.current;
         if (!element) return;
+        let rect = element.getBoundingClientRect();
+        const updateRect = () => {
+            rect = element.getBoundingClientRect();
+        };
+        window.addEventListener('resize', updateRect, { passive: true });
+        window.addEventListener('scroll', updateRect, { passive: true });
         const onMove = (event: PointerEvent) => {
-            const rect = element.getBoundingClientRect();
             x.set(event.clientX - rect.left);
             y.set(event.clientY - rect.top);
         };
         window.addEventListener('pointermove', onMove, { passive: true });
-        return () => window.removeEventListener('pointermove', onMove);
+        return () => {
+            window.removeEventListener('resize', updateRect);
+            window.removeEventListener('scroll', updateRect);
+            window.removeEventListener('pointermove', onMove);
+        };
     }, [x, y]);
 
     return (

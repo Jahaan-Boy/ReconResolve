@@ -1,4 +1,5 @@
 import { ApiClientError } from './types';
+import { queryCache } from './cache';
 
 export type CopilotIntent =
     | 'largest_unresolved_exceptions'
@@ -181,16 +182,27 @@ export class HttpCopilotApiClient implements CopilotApiClient {
     }
 
     async getCapabilities(merchantId: string, signal?: AbortSignal): Promise<CopilotCapabilitiesResult> {
-        const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/capabilities`,
+        const cacheKey = `copilot:capabilities:${merchantId}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/capabilities`,
+                    {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        signal,
+                    },
+                );
+                return this.handleResponse(response, 'Failed to fetch copilot capabilities');
+            },
             {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                signal,
+                ttl: 300_000,
+                staleTtl: 600_000,
+                tags: [`copilot:${merchantId}`],
             },
         );
-        return this.handleResponse(response, 'Failed to fetch copilot capabilities');
     }
 
     async askQuestion(
@@ -217,19 +229,30 @@ export class HttpCopilotApiClient implements CopilotApiClient {
         cursor?: string,
         signal?: AbortSignal,
     ): Promise<CopilotSessionListResult> {
-        const params = new URLSearchParams({ limit: String(limit) });
-        if (cursor) params.set('cursor', cursor);
+        const cacheKey = `copilot:sessions:${merchantId}:${limit}:${cursor || ''}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const params = new URLSearchParams({ limit: String(limit) });
+                if (cursor) params.set('cursor', cursor);
 
-        const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions?${params.toString()}`,
+                const response = await fetch(
+                    `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions?${params.toString()}`,
+                    {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        signal,
+                    },
+                );
+                return this.handleResponse(response, 'Failed to list copilot sessions');
+            },
             {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                signal,
+                ttl: 30_000,
+                staleTtl: 120_000,
+                tags: [`copilot:${merchantId}`],
             },
         );
-        return this.handleResponse(response, 'Failed to list copilot sessions');
     }
 
     async createSession(
@@ -247,7 +270,9 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                 signal,
             },
         );
-        return this.handleResponse(response, 'Failed to create copilot session');
+        const result = await this.handleResponse<CopilotSession>(response, 'Failed to create copilot session');
+        queryCache.invalidateTag(`copilot:${merchantId}`);
+        return result;
     }
 
     async listMessages(
@@ -257,19 +282,30 @@ export class HttpCopilotApiClient implements CopilotApiClient {
         cursor?: string,
         signal?: AbortSignal,
     ): Promise<CopilotMessageListResult> {
-        const params = new URLSearchParams({ limit: String(limit) });
-        if (cursor) params.set('cursor', cursor);
+        const cacheKey = `copilot:messages:${merchantId}:${sessionId}:${limit}:${cursor || ''}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const params = new URLSearchParams({ limit: String(limit) });
+                if (cursor) params.set('cursor', cursor);
 
-        const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions/${encodeURIComponent(sessionId)}/messages?${params.toString()}`,
+                const response = await fetch(
+                    `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/copilot/sessions/${encodeURIComponent(sessionId)}/messages?${params.toString()}`,
+                    {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        signal,
+                    },
+                );
+                return this.handleResponse(response, 'Failed to list session messages');
+            },
             {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                signal,
+                ttl: 30_000,
+                staleTtl: 120_000,
+                tags: [`copilot:${merchantId}`, `copilot-session:${sessionId}`],
             },
         );
-        return this.handleResponse(response, 'Failed to list session messages');
     }
 
     async postSessionMessage(
@@ -288,7 +324,10 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                 signal,
             },
         );
-        return this.handleResponse(response, 'Failed to send message');
+        const result = await this.handleResponse<PostSessionMessageResponse>(response, 'Failed to send message');
+        queryCache.invalidateTag(`copilot-session:${sessionId}`);
+        queryCache.invalidateTag(`copilot:${merchantId}`);
+        return result;
     }
 
     async updateSession(
@@ -307,7 +346,9 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                 signal,
             },
         );
-        return this.handleResponse(response, 'Failed to update session');
+        const result = await this.handleResponse<CopilotSession>(response, 'Failed to update session');
+        queryCache.invalidateTag(`copilot:${merchantId}`);
+        return result;
     }
 
     async getEvidence(

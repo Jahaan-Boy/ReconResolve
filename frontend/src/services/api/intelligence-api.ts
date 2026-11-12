@@ -1,4 +1,5 @@
 import { ApiClientError } from './types';
+import { queryCache } from './cache';
 
 export type PortfolioWindow = '24h' | '7d' | '30d' | 'all';
 export type TrendWindow = '7d' | '30d' | '90d';
@@ -58,72 +59,74 @@ export interface PortfolioIntelligenceResult {
 }
 
 export interface RunSeriesItem {
-    runId: string;
-    startedAt: string;
-    completedAt: string | null;
-    totalConsidered: number;
-    totalMatched: number;
-    totalExceptions: number;
-    matchRatePercentage: number;
+    id: string;
+    createdAt: string;
+    windowStart: string;
+    windowEnd: string;
     status: string;
+    totalConsidered: number;
+    matchedCount: number;
+    unmatchedCount: number;
+    ambiguousCount: number;
+    excludedCount: number;
+    matchRate: number;
 }
 
-export interface DailyRatePoint {
-    date: string;
-    matchRatePercentage: number;
-    runCount: number;
-    totalEvaluated: number;
-    totalMatched: number;
-    totalExceptions: number;
+export interface MatchRateDelta {
+    currentMatchRate: number | null;
+    previousMatchRate: number | null;
+    delta: number | null;
+    direction: 'improving' | 'worsening' | 'stable' | 'insufficient_history';
 }
 
-export interface CurrencyExposureMovement {
-    currency: string;
-    currentExposureMinor: string;
-    previousExposureMinor: string;
-    deltaMinor: string;
-    direction: 'increasing' | 'decreasing' | 'stable';
-    currentCount: number;
-    previousCount: number;
+export interface ExceptionMovement {
+    newInflowCount: number;
+    resolvedOutflowCount: number;
+    netChange: number;
+    countsByStatus: Record<string, number>;
+    countsByType: Record<string, number>;
 }
 
 export interface RecurringPatternTrend {
-    patternKey: string;
+    groupKey: string;
     label: string;
-    priority: OperationalPriority;
-    currentWindowCount: number;
-    previousWindowCount: number;
-    velocityDelta: number;
-    direction: 'worsening' | 'improving' | 'stable';
-    firstSeenAt: string;
-    lastSeenAt: string;
+    description: string;
+    filterType: string;
+    recurrenceCount: number;
+    status: 'NEW' | 'RECURRING' | 'IMPROVING' | 'WORSENING';
+    exposureByCurrency: Record<string, CurrencyExposure>;
 }
 
-export interface AgingDistribution {
-    lessThan24h: number;
-    oneToThreeDays: number;
-    fourToSevenDays: number;
-    olderThanSevenDays: number;
+export interface AgingBucketItem {
+    count: number;
+    exposureByCurrency: Record<string, CurrencyExposure>;
 }
 
-export interface ResolutionVelocity {
-    averageResolutionHours: number | null;
-    openAverageAgeHours: number;
+export interface AgingBuckets {
+    lessThan24h: AgingBucketItem;
+    oneToSevenDays: AgingBucketItem;
+    sevenToThirtyDays: AgingBucketItem;
+    moreThanThirtyDays: AgingBucketItem;
+    oldestUnresolved: {
+        id: string;
+        ageDays: number;
+        type: string;
+        currency: string;
+        formattedExposure: string;
+    } | null;
 }
 
 export interface PortfolioTrendsResult {
     merchantId: string;
-    generatedAt: string;
     window: TrendWindow;
-    trendStatus: 'sufficient' | 'insufficient';
-    insufficientReason: string | null;
+    generatedAt: string;
     runSeries: RunSeriesItem[];
-    dailyMatchRatePoints: DailyRatePoint[];
-    overallMatchRateChange: number | null;
-    exposureMovements: Record<string, CurrencyExposureMovement>;
-    recurringPatternTrends: RecurringPatternTrend[];
-    agingDistribution: AgingDistribution;
-    overallVelocity: ResolutionVelocity;
+    matchRateDelta: MatchRateDelta;
+    exceptionMovement: ExceptionMovement;
+    exposureByCurrency: Record<string, CurrencyExposure>;
+    recurringPatterns: RecurringPatternTrend[];
+    agingBuckets: AgingBuckets;
+    dataLimitations: string[];
 }
 
 export interface IntelligenceApiClient {
@@ -156,34 +159,45 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
         window: PortfolioWindow = '30d',
         signal?: AbortSignal,
     ): Promise<PortfolioIntelligenceResult> {
-        const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/portfolio?window=${encodeURIComponent(window)}`,
+        const cacheKey = `intelligence:portfolio:${merchantId}:${window}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/portfolio?window=${encodeURIComponent(window)}`,
+                    {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        signal,
+                    },
+                );
+
+                if (!response.ok) {
+                    let errorBody: Record<string, unknown> = {};
+                    try {
+                        errorBody = (await response.json()) as Record<string, unknown>;
+                    } catch {
+                        // non-json
+                    }
+                    throw new ApiClientError(
+                        typeof errorBody['error'] === 'string' ? errorBody['error'] : 'INTELLIGENCE_ERROR',
+                        typeof errorBody['message'] === 'string'
+                            ? errorBody['message']
+                            : 'Failed to fetch portfolio intelligence',
+                        response.status,
+                        errorBody['details'],
+                    );
+                }
+
+                return await response.json();
+            },
             {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                signal,
+                ttl: 60_000,
+                staleTtl: 300_000,
+                tags: [`intelligence:${merchantId}`],
             },
         );
-
-        if (!response.ok) {
-            let errorBody: Record<string, unknown> = {};
-            try {
-                errorBody = (await response.json()) as Record<string, unknown>;
-            } catch {
-                // non-json
-            }
-            throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'INTELLIGENCE_ERROR',
-                typeof errorBody['message'] === 'string'
-                    ? errorBody['message']
-                    : 'Failed to fetch portfolio intelligence',
-                response.status,
-                errorBody['details'],
-            );
-        }
-
-        return await response.json();
     }
 
     async getPortfolioSnapshot(
@@ -199,34 +213,45 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
         window: TrendWindow = '30d',
         signal?: AbortSignal,
     ): Promise<PortfolioTrendsResult> {
-        const response = await fetch(
-            `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/trends?window=${encodeURIComponent(window)}`,
+        const cacheKey = `intelligence:trends:${merchantId}:${window}`;
+        return queryCache.fetch(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/intelligence/trends?window=${encodeURIComponent(window)}`,
+                    {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        signal,
+                    },
+                );
+
+                if (!response.ok) {
+                    let errorBody: Record<string, unknown> = {};
+                    try {
+                        errorBody = (await response.json()) as Record<string, unknown>;
+                    } catch {
+                        // non-json
+                    }
+                    throw new ApiClientError(
+                        typeof errorBody['error'] === 'string' ? errorBody['error'] : 'INTELLIGENCE_ERROR',
+                        typeof errorBody['message'] === 'string'
+                            ? errorBody['message']
+                            : 'Failed to fetch portfolio trends',
+                        response.status,
+                        errorBody['details'],
+                    );
+                }
+
+                return await response.json();
+            },
             {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                signal,
+                ttl: 60_000,
+                staleTtl: 300_000,
+                tags: [`intelligence:${merchantId}`],
             },
         );
-
-        if (!response.ok) {
-            let errorBody: Record<string, unknown> = {};
-            try {
-                errorBody = (await response.json()) as Record<string, unknown>;
-            } catch {
-                // non-json
-            }
-            throw new ApiClientError(
-                typeof errorBody['error'] === 'string' ? errorBody['error'] : 'INTELLIGENCE_ERROR',
-                typeof errorBody['message'] === 'string'
-                    ? errorBody['message']
-                    : 'Failed to fetch portfolio trends',
-                response.status,
-                errorBody['details'],
-            );
-        }
-
-        return await response.json();
     }
 }
 

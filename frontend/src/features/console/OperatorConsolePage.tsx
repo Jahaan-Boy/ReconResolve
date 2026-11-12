@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -10,16 +10,36 @@ import { ConsoleAppHeader, type ConsoleView } from './ConsoleAppHeader';
 import { ExceptionQueue } from './ExceptionQueue';
 import { ExceptionInspector } from './ExceptionInspector';
 import { ExceptionActionDialog } from './ExceptionActionDialog';
-import { OrderIngestionDialog } from './OrderIngestionDialog';
-import { ReconciliationDialog } from './ReconciliationDialog';
 import { ReconciliationDashboardPage } from '@/features/dashboard/ReconciliationDashboardPage';
-import { PortfolioIntelligencePage } from '@/features/intelligence/PortfolioIntelligencePage';
-import { ReconciliationCopilotPage } from '@/features/copilot/ReconciliationCopilotPage';
-import { IntegrationsOperationsPage } from '@/features/operations/IntegrationsOperationsPage';
-import { AuthModal } from '@/features/auth/AuthModal';
+
+const PortfolioIntelligencePage = lazy(() =>
+    import('@/features/intelligence/PortfolioIntelligencePage').then((m) => ({
+        default: m.PortfolioIntelligencePage,
+    }))
+);
+const ReconciliationCopilotPage = lazy(() =>
+    import('@/features/copilot/ReconciliationCopilotPage').then((m) => ({
+        default: m.ReconciliationCopilotPage,
+    }))
+);
+const IntegrationsOperationsPage = lazy(() =>
+    import('@/features/operations/IntegrationsOperationsPage').then((m) => ({
+        default: m.IntegrationsOperationsPage,
+    }))
+);
+const ReconciliationDialog = lazy(() =>
+    import('./ReconciliationDialog').then((m) => ({ default: m.ReconciliationDialog }))
+);
+const OrderIngestionDialog = lazy(() =>
+    import('./OrderIngestionDialog').then((m) => ({ default: m.OrderIngestionDialog }))
+);
+const AuthModal = lazy(() =>
+    import('@/features/auth/AuthModal').then((m) => ({ default: m.AuthModal }))
+);
 import { useConsoleKeyboardShortcuts } from '@/hooks/useConsoleKeyboardShortcuts';
 import { adaptiveApiClient, type ApiSource } from '@/services/api/api-client';
 import { connectionsApiClient } from '@/services/api/connections-api';
+import { queryCache } from '@/services/api/cache';
 import {
     authApiClient,
     subscribeUnauthorized,
@@ -51,6 +71,17 @@ interface ToastMessage {
     message: string;
 }
 
+function TabLoadingFallback({ label }: { label: string }) {
+    return (
+        <div className="h-full flex items-center justify-center bg-slate-50/50 p-8">
+            <div className="flex flex-col items-center gap-3">
+                <div className="w-7 h-7 border-2 border-fin-brand border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-medium text-slate-500 font-mono">{label}</span>
+            </div>
+        </div>
+    );
+}
+
 export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePageProps) {
     // Current merchant context
     const [merchantId, setMerchantId] = useState<string>(DEFAULT_MERCHANT_ID);
@@ -68,6 +99,31 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     const [isReconModalOpen, setIsReconModalOpen] = useState(false);
     const [selectedReconRunId, setSelectedReconRunId] = useState<string | null>(null);
     const [consoleView, setConsoleView] = useState<ConsoleView>('dashboard');
+    const [visitedViews, setVisitedViews] = useState<Set<ConsoleView>>(() => new Set(['dashboard']));
+
+    const handleSetConsoleView = useCallback((nextView: ConsoleView) => {
+        setConsoleView(nextView);
+        setVisitedViews((prev) => {
+            if (prev.has(nextView)) return prev;
+            const updated = new Set(prev);
+            updated.add(nextView);
+            return updated;
+        });
+    }, []);
+
+    const handlePrefetchView = useCallback((view: ConsoleView) => {
+        switch (view) {
+            case 'intelligence':
+                import('@/features/intelligence/PortfolioIntelligencePage');
+                break;
+            case 'copilot':
+                import('@/features/copilot/ReconciliationCopilotPage');
+                break;
+            case 'operations':
+                import('@/features/operations/IntegrationsOperationsPage');
+                break;
+        }
+    }, []);
 
     const [operatorContext, setOperatorContext] = useState<OperatorContext>({
         operatorId: 'operator-sarah',
@@ -313,7 +369,13 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
     const loadDetail = useCallback(
         async (targetMerchantId: string, exceptionId: string) => {
             const reqId = ++detailRequestIdRef.current;
-            setLoadingDetail(true);
+            const cached = queryCache.get<ExceptionDetail>(`exceptions:detail:${targetMerchantId}:${exceptionId}`);
+            if (cached) {
+                setDetail(cached);
+                setLoadingDetail(false);
+            } else {
+                setLoadingDetail(true);
+            }
             setDetailError(null);
             try {
                 const data = await adaptiveApiClient.getException(targetMerchantId, exceptionId);
@@ -333,8 +395,9 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         [addToast],
     );
 
-    // Fetch global status counts whenever merchant changes
+    // Fetch global status counts only when workbench has been visited
     useEffect(() => {
+        if (!visitedViews.has('workbench')) return;
         let isMounted = true;
         Promise.resolve().then(() => {
             if (isMounted) {
@@ -344,10 +407,11 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         return () => {
             isMounted = false;
         };
-    }, [merchantId, loadStatusCounts]);
+    }, [merchantId, visitedViews, loadStatusCounts]);
 
-    // Fetch queue when merchant or filters change
+    // Fetch queue when merchant or filters change - only when workbench has been visited
     useEffect(() => {
+        if (!visitedViews.has('workbench')) return;
         let isMounted = true;
         Promise.resolve().then(() => {
             if (isMounted) {
@@ -357,11 +421,11 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         return () => {
             isMounted = false;
         };
-    }, [merchantId, filters, loadExceptions]);
+    }, [merchantId, filters, visitedViews, loadExceptions]);
 
-    // Fetch detail when selectedId changes
+    // Fetch detail when selectedId changes - only when workbench is active/visited
     useEffect(() => {
-        if (!selectedId) return;
+        if (!selectedId || !visitedViews.has('workbench')) return;
         let isMounted = true;
         Promise.resolve().then(() => {
             if (isMounted) {
@@ -371,7 +435,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
         return () => {
             isMounted = false;
         };
-    }, [selectedId, merchantId, loadDetail]);
+    }, [selectedId, merchantId, visitedViews, loadDetail]);
 
     // Merchant Switch Handler: clears selections and resets pagination
     const handleSelectMerchant = (newMerchantId: string) => {
@@ -383,6 +447,7 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
 
         // Immediately isolate tenant state by clearing UI items and selection
         setMerchantId(newMerchantId);
+        setVisitedViews(new Set([consoleView]));
         setItems([]);
         setStatusCounts(undefined);
         setSelectedId(null);
@@ -561,8 +626,14 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
 
     const handleSelectRow = (id: string) => {
         if (id !== selectedId) {
-            setDetail(null);
-            setDetailError(null);
+            const cached = queryCache.get<ExceptionDetail>(`exceptions:detail:${merchantId}:${id}`);
+            if (cached) {
+                setDetail(cached);
+                setDetailError(null);
+            } else {
+                setDetail(null);
+                setDetailError(null);
+            }
             setActiveAction(null);
             setConflictWarning(null);
         }
@@ -627,7 +698,8 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                     isSyncingPayPal={isSyncingPayPal}
                     onOpenOrderIngestion={() => setIsOrderModalOpen(true)}
                     activeView={consoleView}
-                    onChangeView={setConsoleView}
+                    onChangeView={handleSetConsoleView}
+                    onPrefetchView={handlePrefetchView}
                     onOpenReconciliation={() => {
                         setSelectedReconRunId(null);
                         setIsReconModalOpen(true);
@@ -635,9 +707,10 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                 />
             </ErrorBoundary>
 
-            {/* Workbench Body */}
-            <main className="flex-1 min-h-0 h-full overflow-hidden flex flex-col">
-                {consoleView === 'dashboard' ? (
+            {/* Workbench Body - Keep-Alive Tab Views */}
+            <main className="flex-1 min-h-0 h-full overflow-hidden flex flex-col relative">
+                {/* 1. Dashboard View */}
+                <div className={`h-full flex flex-col ${consoleView === 'dashboard' ? '' : 'hidden'}`}>
                     <ReconciliationDashboardPage
                         merchantId={merchantId}
                         merchantName={currentMerchantName}
@@ -657,107 +730,131 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
                                 setDetailError(null);
                             }
                             setSelectedId(exceptionId);
-                            setConsoleView('workbench');
+                            handleSetConsoleView('workbench');
                             setShowMobileDetail(true);
                         }}
                         onNavigateToQueue={() => {
-                            setConsoleView('workbench');
+                            handleSetConsoleView('workbench');
                         }}
                     />
-                ) : consoleView === 'intelligence' ? (
-                    <PortfolioIntelligencePage
-                        merchantId={merchantId}
-                        onNavigateToException={(exceptionId) => {
-                            if (exceptionId !== selectedId) {
-                                setDetail(null);
-                                setDetailError(null);
-                            }
-                            setSelectedId(exceptionId);
-                            setConsoleView('workbench');
-                            setShowMobileDetail(true);
-                        }}
-                        onFilterQueueByType={(filterType) => {
-                            setFilters((prev) => ({ ...prev, type: filterType as ExceptionType }));
-                            setConsoleView('workbench');
-                        }}
-                    />
-                ) : consoleView === 'copilot' ? (
-                    <ReconciliationCopilotPage
-                        merchantId={merchantId}
-                        onNavigateToException={(exceptionId) => {
-                            if (exceptionId !== selectedId) {
-                                setDetail(null);
-                                setDetailError(null);
-                            }
-                            setSelectedId(exceptionId);
-                            setConsoleView('workbench');
-                            setShowMobileDetail(true);
-                        }}
-                        onNavigateToRun={(runId) => {
-                            setSelectedReconRunId(runId);
-                            setIsReconModalOpen(true);
-                        }}
-                    />
-                ) : consoleView === 'operations' ? (
-                    <IntegrationsOperationsPage merchantId={merchantId} />
-                ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 h-full">
-                    {/* Left Pane: Queue & Filters (40% width / 5 cols) */}
-                    <div
-                        className={`h-full lg:col-span-5 flex flex-col border-r border-slate-200 overflow-hidden ${
-                            showMobileDetail ? 'hidden lg:flex' : 'flex'
-                        }`}
-                    >
-                        <ExceptionQueue
-                            items={items}
-                            pagination={pagination}
-                            selectedId={selectedId}
-                            onSelectException={handleSelectRow}
-                            filters={filters}
-                            onChangeFilters={handleChangeFilters}
-                            onResetFilters={handleResetFilters}
-                            loading={loadingQueue}
-                            error={queueError}
-                            onRetry={() => loadExceptions(merchantId, filters)}
-                            onNextPage={handleNextPage}
-                            onPrevPage={handlePrevPage}
-                            hasPrevPage={cursorHistory.length > 0}
-                            statusCounts={statusCounts}
-                            merchantSlug={currentMerchantSlug}
-                            onExportSuccess={(count) =>
-                                addToast('success', `Exported ${count} exceptions to CSV`)
-                            }
-                        />
-                    </div>
-
-                    {/* Right Pane: Inspector Workbench (60% width / 7 cols) */}
-                    <div
-                        className={`h-full lg:col-span-7 overflow-hidden ${
-                            !showMobileDetail ? 'hidden lg:block' : 'block'
-                        }`}
-                    >
-                        <ExceptionInspector
-                            exception={detail}
-                            selectedId={selectedId}
-                            merchantId={merchantId}
-                            operatorContext={operatorContext}
-                            loading={loadingDetail}
-                            error={detailError}
-                            onRetry={() => {
-                                if (selectedId) {
-                                    loadDetail(merchantId, selectedId);
-                                }
-                            }}
-                            onTriggerAction={handleTriggerAction}
-                            actionInProgress={isSubmittingAction}
-                            onCloseInspector={() => setShowMobileDetail(false)}
-                            onInspectRun={(runId) => {
-                                setSelectedReconRunId(runId);
-                                setIsReconModalOpen(true);
-                            }}
-                        />
-                    </div>
                 </div>
+
+                {/* 2. Workbench (Queue + Inspector) View */}
+                {visitedViews.has('workbench') && (
+                    <div className={`h-full grid grid-cols-1 lg:grid-cols-12 ${consoleView === 'workbench' ? '' : 'hidden'}`}>
+                        {/* Left Pane: Queue & Filters (40% width / 5 cols) */}
+                        <div
+                            className={`h-full lg:col-span-5 flex flex-col border-r border-slate-200 overflow-hidden ${
+                                showMobileDetail ? 'hidden lg:flex' : 'flex'
+                            }`}
+                        >
+                            <ExceptionQueue
+                                items={items}
+                                pagination={pagination}
+                                selectedId={selectedId}
+                                onSelectException={handleSelectRow}
+                                filters={filters}
+                                onChangeFilters={handleChangeFilters}
+                                onResetFilters={handleResetFilters}
+                                loading={loadingQueue}
+                                error={queueError}
+                                onRetry={() => loadExceptions(merchantId, filters)}
+                                onNextPage={handleNextPage}
+                                onPrevPage={handlePrevPage}
+                                hasPrevPage={cursorHistory.length > 0}
+                                statusCounts={statusCounts}
+                                merchantSlug={currentMerchantSlug}
+                                onExportSuccess={(count) =>
+                                    addToast('success', `Exported ${count} exceptions to CSV`)
+                                }
+                            />
+                        </div>
+
+                        {/* Right Pane: Inspector Workbench (60% width / 7 cols) */}
+                        <div
+                            className={`h-full lg:col-span-7 overflow-hidden ${
+                                !showMobileDetail ? 'hidden lg:block' : 'block'
+                            }`}
+                        >
+                            <ExceptionInspector
+                                exception={detail}
+                                selectedId={selectedId}
+                                merchantId={merchantId}
+                                operatorContext={operatorContext}
+                                loading={loadingDetail}
+                                error={detailError}
+                                onRetry={() => {
+                                    if (selectedId) {
+                                        loadDetail(merchantId, selectedId);
+                                    }
+                                }}
+                                onTriggerAction={handleTriggerAction}
+                                actionInProgress={isSubmittingAction}
+                                onCloseInspector={() => setShowMobileDetail(false)}
+                                onInspectRun={(runId) => {
+                                    setSelectedReconRunId(runId);
+                                    setIsReconModalOpen(true);
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* 3. Intelligence View */}
+                {visitedViews.has('intelligence') && (
+                    <div className={`h-full flex flex-col ${consoleView === 'intelligence' ? '' : 'hidden'}`}>
+                        <Suspense fallback={<TabLoadingFallback label="Loading Intelligence..." />}>
+                            <PortfolioIntelligencePage
+                                merchantId={merchantId}
+                                onNavigateToException={(exceptionId) => {
+                                    if (exceptionId !== selectedId) {
+                                        setDetail(null);
+                                        setDetailError(null);
+                                    }
+                                    setSelectedId(exceptionId);
+                                    handleSetConsoleView('workbench');
+                                    setShowMobileDetail(true);
+                                }}
+                                onFilterQueueByType={(filterType) => {
+                                    setFilters((prev) => ({ ...prev, type: filterType as ExceptionType }));
+                                    handleSetConsoleView('workbench');
+                                }}
+                            />
+                        </Suspense>
+                    </div>
+                )}
+
+                {/* 4. Copilot View */}
+                {visitedViews.has('copilot') && (
+                    <div className={`h-full flex flex-col ${consoleView === 'copilot' ? '' : 'hidden'}`}>
+                        <Suspense fallback={<TabLoadingFallback label="Loading Copilot..." />}>
+                            <ReconciliationCopilotPage
+                                merchantId={merchantId}
+                                onNavigateToException={(exceptionId) => {
+                                    if (exceptionId !== selectedId) {
+                                        setDetail(null);
+                                        setDetailError(null);
+                                    }
+                                    setSelectedId(exceptionId);
+                                    handleSetConsoleView('workbench');
+                                    setShowMobileDetail(true);
+                                }}
+                                onNavigateToRun={(runId) => {
+                                    setSelectedReconRunId(runId);
+                                    setIsReconModalOpen(true);
+                                }}
+                            />
+                        </Suspense>
+                    </div>
+                )}
+
+                {/* 5. Operations View */}
+                {visitedViews.has('operations') && (
+                    <div className={`h-full flex flex-col ${consoleView === 'operations' ? '' : 'hidden'}`}>
+                        <Suspense fallback={<TabLoadingFallback label="Loading Operations..." />}>
+                            <IntegrationsOperationsPage merchantId={merchantId} />
+                        </Suspense>
+                    </div>
                 )}
             </main>
 
@@ -776,31 +873,43 @@ export function OperatorConsolePage({ onNavigateLanding }: OperatorConsolePagePr
             />
 
             {/* Order Ingestion Modal */}
-            <OrderIngestionDialog
-                isOpen={isOrderModalOpen}
-                onClose={() => setIsOrderModalOpen(false)}
-                merchantId={merchantId}
-                onOrderIngested={() => addToast('success', 'Order ingestion completed')}
-            />
+            {isOrderModalOpen && (
+                <Suspense fallback={null}>
+                    <OrderIngestionDialog
+                        isOpen={isOrderModalOpen}
+                        onClose={() => setIsOrderModalOpen(false)}
+                        merchantId={merchantId}
+                        onOrderIngested={() => addToast('success', 'Order ingestion completed')}
+                    />
+                </Suspense>
+            )}
 
             {/* Authentication Modal */}
-            <AuthModal
-                isOpen={isAuthModalOpen}
-                onClose={() => setIsAuthModalOpen(false)}
-                onLoginSuccess={handleLoginSuccess}
-            />
+            {isAuthModalOpen && (
+                <Suspense fallback={null}>
+                    <AuthModal
+                        isOpen={isAuthModalOpen}
+                        onClose={() => setIsAuthModalOpen(false)}
+                        onLoginSuccess={handleLoginSuccess}
+                    />
+                </Suspense>
+            )}
 
             {/* Reconciliation Hub Modal */}
-            <ReconciliationDialog
-                isOpen={isReconModalOpen}
-                onClose={() => {
-                    setIsReconModalOpen(false);
-                    setSelectedReconRunId(null);
-                }}
-                merchantId={merchantId}
-                operatorRole={operatorContext.role}
-                initialRunId={selectedReconRunId}
-            />
+            {isReconModalOpen && (
+                <Suspense fallback={null}>
+                    <ReconciliationDialog
+                        isOpen={isReconModalOpen}
+                        onClose={() => {
+                            setIsReconModalOpen(false);
+                            setSelectedReconRunId(null);
+                        }}
+                        merchantId={merchantId}
+                        operatorRole={operatorContext.role}
+                        initialRunId={selectedReconRunId}
+                    />
+                </Suspense>
+            )}
 
             {/* Toast Container */}
             <div

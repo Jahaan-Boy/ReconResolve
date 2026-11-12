@@ -1,3 +1,5 @@
+import { queryCache } from './cache';
+
 export interface UserProfile {
     id: string;
     email: string;
@@ -59,32 +61,44 @@ export class AuthApiClient {
             throw new Error(errorMsg);
         }
 
-        return (await res.json()) as AuthSessionData;
+        const session = (await res.json()) as AuthSessionData;
+        queryCache.clear();
+        return session;
     }
 
     async fetchMe(): Promise<AuthSessionData | null> {
-        try {
-            const res = await fetch(`${this.baseUrl}/api/auth/me`, {
-                method: 'GET',
-                headers: {
-                    Accept: 'application/json',
-                },
-                credentials: 'same-origin',
-            });
+        return queryCache.fetch(
+            'auth:me',
+            async () => {
+                try {
+                    const res = await fetch(`${this.baseUrl}/api/auth/me`, {
+                        method: 'GET',
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    });
 
-            if (res.status === 401 || res.status === 403) {
-                notifyUnauthorized();
-                return null;
-            }
+                    if (res.status === 401 || res.status === 403) {
+                        notifyUnauthorized();
+                        return null;
+                    }
 
-            if (!res.ok) {
-                return null;
-            }
+                    if (!res.ok) {
+                        return null;
+                    }
 
-            return (await res.json()) as AuthSessionData;
-        } catch {
-            return null;
-        }
+                    return (await res.json()) as AuthSessionData;
+                } catch {
+                    return null;
+                }
+            },
+            {
+                ttl: 60_000,
+                staleTtl: 300_000,
+                tags: ['auth'],
+            },
+        );
     }
 
     async switchMerchant(merchantId: string): Promise<PermittedMerchant> {
@@ -110,6 +124,7 @@ export class AuthApiClient {
         }
 
         const data = await res.json();
+        queryCache.clear();
         return data.activeMerchant;
     }
 
@@ -123,6 +138,7 @@ export class AuthApiClient {
                 credentials: 'same-origin',
             });
         } finally {
+            queryCache.clear();
             notifyUnauthorized();
         }
     }
