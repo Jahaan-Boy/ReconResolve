@@ -6,11 +6,12 @@ import {
 } from './types';
 import { notifyUnauthorized } from './auth-api';
 import { queryCache } from './cache';
+import { API_BASE_URL } from './config';
 
 export class HttpDashboardApiClient implements DashboardApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -60,7 +61,7 @@ export class HttpDashboardApiClient implements DashboardApiClient {
                         headers: {
                             Accept: 'application/json',
                         },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                         signal,
                     });
 

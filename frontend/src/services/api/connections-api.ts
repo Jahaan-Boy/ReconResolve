@@ -6,11 +6,12 @@ import {
 } from './types';
 import { notifyUnauthorized } from './auth-api';
 import { queryCache } from './cache';
+import { API_BASE_URL } from './config';
 
 export class HttpConnectionsApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -57,7 +58,7 @@ export class HttpConnectionsApiClient {
                         headers: {
                             Accept: 'application/json',
                         },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                     });
 
                     return await this.handleResponse<ListConnectionsResult>(res);
@@ -95,7 +96,7 @@ export class HttpConnectionsApiClient {
                     headers: {
                         Accept: 'application/json',
                     },
-                    credentials: 'same-origin',
+                    credentials: 'include',
                 });
                 return this.handleResponse<ProviderConnectionDetail>(res);
             },
@@ -133,7 +134,7 @@ export class HttpConnectionsApiClient {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(range || {}),
         });
 
@@ -168,7 +169,7 @@ export class HttpConnectionsApiClient {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(payload || {}),
         });
         const result = await this.handleResponse<{

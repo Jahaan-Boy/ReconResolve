@@ -1,4 +1,5 @@
 import { ApiClientError } from './types';
+import { API_BASE_URL } from './config';
 import type {
     EventTimelineResult,
     OperationsApiClient,
@@ -11,7 +12,7 @@ import { queryCache } from './cache';
 export class HttpOperationsApiClient implements OperationsApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -23,7 +24,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
                 const response = await fetch(`${this.baseUrl}/api/merchants/${encodeURIComponent(merchantId)}/operations/summary`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
+                    credentials: 'include',
                     signal,
                 });
 
@@ -61,7 +62,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                credentials: 'include',
             },
         );
 
@@ -98,7 +99,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
                     {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                     },
                 );
 
@@ -140,7 +141,7 @@ export class HttpOperationsApiClient implements OperationsApiClient {
                     {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                     },
                 );
 

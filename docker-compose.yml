@@ -149,6 +149,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: flowops-frontend
+    environment:
+      PORT: 80
+      BACKEND_URL: ${BACKEND_URL:-http://api:3000}
     ports:
       - "${FRONTEND_PORT:-5173}:80"
     healthcheck:

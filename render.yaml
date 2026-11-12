@@ -1,0 +1,150 @@
+# ==============================================================================
+# Render Blueprint Specification for ReconResolve
+# Docs: https://render.com/docs/blueprint-spec
+# ==============================================================================
+# NOTE ON PLANS & PRICING:
+# - Managed PostgreSQL: 'starter' ($7/mo) recommended for production persistence.
+#   (Render free databases expire after 30 days).
+# - Managed Key Value (Redis): 'starter' ($7/mo) or free tier. If omitted or degraded,
+#   ReconResolve gracefully falls back to its internal in-memory cache store.
+# - Backend API: 'starter' ($7/mo) or 'free'.
+# - Outbox Worker: Background Workers on Render REQUIRE a paid instance plan ('starter' $7/mo minimum).
+# - Frontend: 'starter' ($7/mo) or 'free'.
+# ==============================================================================
+
+databases:
+  - name: reconresolve-db
+    databaseName: reconresolve
+    user: reconresolve_user
+    plan: starter
+    region: oregon
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Managed Key Value (Redis Cache Store)
+  # ----------------------------------------------------------------------------
+  - type: keyvalue
+    name: reconresolve-redis
+    plan: starter
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+
+  # ----------------------------------------------------------------------------
+  # 2. Backend Express REST API Web Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: reconresolve-backend
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    preDeployCommand: npm run db:migrate
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: reconresolve-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: reconresolve-redis
+          property: connectionString
+      - key: CORS_ALLOWED_ORIGIN
+        fromService:
+          type: web
+          name: reconresolve-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: COOKIE_SAME_SITE
+        value: none
+      - key: SESSION_TTL_HOURS
+        value: "168"
+      - key: ALLOW_TEST_FAKE_AI
+        value: "true"
+      # Credentials (configured securely via Render Dashboard or prompted on Blueprint apply)
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL_ID
+        value: gemini-2.5-flash
+
+  # ----------------------------------------------------------------------------
+  # 3. Transactional Outbox Background Worker Daemon
+  # ----------------------------------------------------------------------------
+  - type: worker
+    name: reconresolve-worker
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: npm run outbox:worker
+    numInstances: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: reconresolve-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: reconresolve-redis
+          property: connectionString
+      - key: OUTBOX_POLL_INTERVAL_MS
+        value: "1000"
+      - key: OUTBOX_BATCH_SIZE
+        value: "20"
+      - key: OUTBOX_LEASE_DURATION_MS
+        value: "30000"
+      - key: OUTBOX_CONCURRENCY
+        value: "5"
+      - key: OUTBOX_MAX_ATTEMPTS
+        value: "5"
+      - key: OUTBOX_BASE_BACKOFF_MS
+        value: "1000"
+      - key: OUTBOX_MAX_BACKOFF_MS
+        value: "60000"
+      - key: OUTBOX_DRAIN_TIMEOUT_MS
+        value: "10000"
+      - key: ALLOW_TEST_FAKE_AI
+        value: "true"
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL_ID
+        value: gemini-2.5-flash
+
+  # ----------------------------------------------------------------------------
+  # 4. Frontend Web UI (Nginx Alpine + Built Vite SPA)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: reconresolve-frontend
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: reconresolve-backend
+          envVarKey: RENDER_EXTERNAL_URL

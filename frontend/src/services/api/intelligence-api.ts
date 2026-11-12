@@ -1,5 +1,6 @@
 import { ApiClientError } from './types';
 import { queryCache } from './cache';
+import { API_BASE_URL } from './config';
 
 export type PortfolioWindow = '24h' | '7d' | '30d' | 'all';
 export type TrendWindow = '7d' | '30d' | '90d';
@@ -150,7 +151,7 @@ export interface IntelligenceApiClient {
 export class HttpIntelligenceApiClient implements IntelligenceApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -168,7 +169,7 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
                     {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                         signal,
                     },
                 );
@@ -222,7 +223,7 @@ export class HttpIntelligenceApiClient implements IntelligenceApiClient {
                     {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                         signal,
                     },
                 );

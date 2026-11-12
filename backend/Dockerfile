@@ -52,7 +52,9 @@ RUN cp -r src/generated dist/generated
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV=development
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
 ENV ALLOW_TEST_FAKE_AI=true
 
 # Copy application code and node_modules from builder
@@ -71,8 +73,8 @@ EXPOSE 3000
 
 # Container healthcheck targeting Express /health endpoint via IPv4 loopback
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=20s \
-  CMD curl -f http://127.0.0.1:3000/health || exit 1
+  CMD curl -f "http://127.0.0.1:${PORT:-3000}/health" || exit 1
 
-# Default command launches the Express API server
-CMD ["node", "dist/server.js"]
+# Default command launches the Express API server via existing production start script
+CMD ["npm", "start"]
 

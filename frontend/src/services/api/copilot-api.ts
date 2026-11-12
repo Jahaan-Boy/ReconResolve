@@ -1,5 +1,6 @@
 import { ApiClientError } from './types';
 import { queryCache } from './cache';
+import { API_BASE_URL } from './config';
 
 export type CopilotIntent =
     | 'largest_unresolved_exceptions'
@@ -159,7 +160,7 @@ export interface CopilotApiClient {
 export class HttpCopilotApiClient implements CopilotApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -191,7 +192,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                     {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                         signal,
                     },
                 );
@@ -215,7 +216,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                credentials: 'include',
                 body: JSON.stringify(request),
                 signal,
             },
@@ -241,7 +242,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                     {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                         signal,
                     },
                 );
@@ -265,7 +266,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                credentials: 'include',
                 body: JSON.stringify(title ? { title } : {}),
                 signal,
             },
@@ -294,7 +295,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
                     {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                         signal,
                     },
                 );
@@ -319,7 +320,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                credentials: 'include',
                 body: JSON.stringify(request),
                 signal,
             },
@@ -341,7 +342,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                credentials: 'include',
                 body: JSON.stringify(updates),
                 signal,
             },
@@ -362,7 +363,7 @@ export class HttpCopilotApiClient implements CopilotApiClient {
             {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
+                credentials: 'include',
                 signal,
             },
         );

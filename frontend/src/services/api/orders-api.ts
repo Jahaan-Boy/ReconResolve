@@ -8,11 +8,12 @@ import {
     type SingleIngestResult,
 } from './types';
 import { notifyUnauthorized } from './auth-api';
+import { API_BASE_URL } from './config';
 
 export class HttpOrdersApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -57,7 +58,7 @@ export class HttpOrdersApiClient {
             headers: {
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
         });
 
         return this.handleResponse<ListOrdersResult>(res);
@@ -70,7 +71,7 @@ export class HttpOrdersApiClient {
             headers: {
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
         });
         return this.handleResponse<MerchantOrderSummary>(res);
     }
@@ -83,7 +84,7 @@ export class HttpOrdersApiClient {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(input),
         });
         return this.handleResponse<SingleIngestResult>(res);
@@ -97,7 +98,7 @@ export class HttpOrdersApiClient {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify({ orders }),
         });
         return this.handleResponse<BatchIngestResult>(res);

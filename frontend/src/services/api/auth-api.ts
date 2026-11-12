@@ -1,4 +1,5 @@
 import { queryCache } from './cache';
+import { API_BASE_URL } from './config';
 
 export interface UserProfile {
     id: string;
@@ -35,7 +36,7 @@ export function notifyUnauthorized(): void {
 export class AuthApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -46,7 +47,7 @@ export class AuthApiClient {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify({ email, password }),
         });
 
@@ -76,7 +77,7 @@ export class AuthApiClient {
                         headers: {
                             Accept: 'application/json',
                         },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                     });
 
                     if (res.status === 401 || res.status === 403) {
@@ -108,7 +109,7 @@ export class AuthApiClient {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify({ merchantId }),
         });
 
@@ -135,7 +136,7 @@ export class AuthApiClient {
                 headers: {
                     Accept: 'application/json',
                 },
-                credentials: 'same-origin',
+                credentials: 'include',
             });
         } finally {
             queryCache.clear();

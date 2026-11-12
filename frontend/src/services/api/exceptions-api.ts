@@ -17,11 +17,12 @@ import {
 import { validateInvestigationRecord } from './investigation-validator';
 import { notifyUnauthorized } from './auth-api';
 import { queryCache } from './cache';
+import { API_BASE_URL } from './config';
 
 export class HttpExceptionsApiClient implements ExceptionsApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -92,7 +93,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
                     headers: {
                         Accept: 'application/json',
                     },
-                    credentials: 'same-origin',
+                    credentials: 'include',
                 });
 
                 return this.handleResponse<ListExceptionsResult>(res);
@@ -116,7 +117,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
                     headers: {
                         Accept: 'application/json',
                     },
-                    credentials: 'same-origin',
+                    credentials: 'include',
                 });
                 return this.handleResponse<ExceptionDetail>(res);
             },
@@ -139,7 +140,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
                     headers: {
                         Accept: 'application/json',
                     },
-                    credentials: 'same-origin',
+                    credentials: 'include',
                 });
                 const data = await this.handleResponse<{ exceptionId: string; auditEvents: ExceptionAuditEventSummary[] }>(res);
                 return data.auditEvents;
@@ -162,7 +163,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(input),
         });
         await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
@@ -182,7 +183,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(input),
         });
         await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
@@ -202,7 +203,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(input),
         });
         await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
@@ -222,7 +223,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(input),
         });
         await this.handleResponse<{ exception: unknown; auditEvent: unknown }>(res);
@@ -243,7 +244,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
         const res = await fetch(url, {
             method: 'POST',
             headers: this.buildHeaders(ctx),
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(input || {}),
             signal,
         });
@@ -266,7 +267,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
                 const res = await fetch(url, {
                     method: 'GET',
                     headers: this.buildHeaders(ctx),
-                    credentials: 'same-origin',
+                    credentials: 'include',
                     signal,
                 });
                 if (res.status === 404) return null;
@@ -295,7 +296,7 @@ export class HttpExceptionsApiClient implements ExceptionsApiClient {
                 const res = await fetch(url, {
                     method: 'GET',
                     headers: this.buildHeaders(ctx),
-                    credentials: 'same-origin',
+                    credentials: 'include',
                     signal,
                 });
                 const data = await this.handleResponse<{ exceptionId: string; investigations: unknown[] }>(res);

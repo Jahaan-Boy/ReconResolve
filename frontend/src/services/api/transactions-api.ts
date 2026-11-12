@@ -5,11 +5,12 @@ import {
     type ProviderTransactionDetail,
 } from './types';
 import { notifyUnauthorized } from './auth-api';
+import { API_BASE_URL } from './config';
 
 export class HttpTransactionsApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -58,7 +59,7 @@ export class HttpTransactionsApiClient {
             headers: {
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
         });
 
         return this.handleResponse<ListTransactionsResult>(res);
@@ -71,7 +72,7 @@ export class HttpTransactionsApiClient {
             headers: {
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
         });
         return this.handleResponse<ProviderTransactionDetail>(res);
     }

@@ -130,11 +130,15 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
             // Create server-managed session with SHA-256 token hash
             const { rawToken } = await sessionService.createSession(user.id);
 
-            // Set HttpOnly, SameSite=Lax cookie (primary credential transport)
+            // Set HttpOnly cookie (primary credential transport)
+            const sameSiteEnv = (process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
+            const sameSite: 'lax' | 'strict' | 'none' = (sameSiteEnv === 'none' ? 'none' : sameSiteEnv === 'strict' ? 'strict' : 'lax');
+            const isSecure = config.nodeEnv === 'production' || sameSite === 'none';
+
             res.cookie(COOKIE_NAME, rawToken, {
                 httpOnly: true,
-                secure: config.nodeEnv === 'production',
-                sameSite: 'lax',
+                secure: isSecure,
+                sameSite,
                 path: '/',
                 maxAge: DEFAULT_SESSION_TTL_MS,
             });
@@ -288,10 +292,14 @@ export function createAuthRouter(deps: AuthRouterDeps = {}): Router {
                 await sessionService.revokeSession(token);
             }
 
+            const sameSiteEnv = (process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
+            const sameSite: 'lax' | 'strict' | 'none' = (sameSiteEnv === 'none' ? 'none' : sameSiteEnv === 'strict' ? 'strict' : 'lax');
+            const isSecure = config.nodeEnv === 'production' || sameSite === 'none';
+
             res.clearCookie(COOKIE_NAME, {
                 httpOnly: true,
-                secure: config.nodeEnv === 'production',
-                sameSite: 'lax',
+                secure: isSecure,
+                sameSite,
                 path: '/',
             });
 

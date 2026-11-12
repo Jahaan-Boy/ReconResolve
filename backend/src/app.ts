@@ -59,9 +59,10 @@ export function buildApp(deps?: AppDeps): Application {
         res.setHeader('X-Frame-Options', 'DENY');
         res.setHeader('X-XSS-Protection', '0');
 
-        const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN || '*';
+        const allowedOriginSetting = process.env.CORS_ALLOWED_ORIGIN || '*';
+        const allowedOrigins = allowedOriginSetting.split(',').map((o) => o.trim());
         const origin = req.headers.origin;
-        if (origin && (allowedOrigin === '*' || allowedOrigin === origin)) {
+        if (origin && (allowedOriginSetting === '*' || allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
             res.setHeader('Access-Control-Allow-Origin', origin);
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Correlation-ID, Idempotency-Key');

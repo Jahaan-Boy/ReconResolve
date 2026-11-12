@@ -1,4 +1,5 @@
 import { HttpExceptionsApiClient } from './exceptions-api';
+import { API_BASE_URL } from './config';
 import type {
     ExceptionsApiClient,
     ExceptionAuditEventSummary,
@@ -21,7 +22,7 @@ class LiveExceptionsApiClient implements ExceptionsApiClient {
     readonly source: ApiSource = 'live';
 
     constructor() {
-        this.httpClient = new HttpExceptionsApiClient('');
+        this.httpClient = new HttpExceptionsApiClient(API_BASE_URL);
     }
 
     setSource(_source: ApiSource) {

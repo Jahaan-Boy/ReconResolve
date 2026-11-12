@@ -17,13 +17,17 @@ function parsePort(raw: string): number {
     }
     return port;
 }
-function parseNodeEnv(raw: string): NodeEnv {
-    if (!(SUPPORTED_ENVS as readonly string[]).includes(raw)) {
+function parseNodeEnv(raw?: string): NodeEnv {
+    if (!raw || raw.trim() === '') {
+        return 'production';
+    }
+    const val = raw.trim();
+    if (!(SUPPORTED_ENVS as readonly string[]).includes(val)) {
         throw new Error(
-            `NODE_ENV must be one of [${SUPPORTED_ENVS.join(', ')}] (received: "${raw}")`,
+            `NODE_ENV must be one of [${SUPPORTED_ENVS.join(', ')}] (received: "${val}")`,
         );
     }
-    return raw as NodeEnv;
+    return val as NodeEnv;
 }
 function parseSessionTtlHours(raw?: string): number {
     if (!raw || raw.trim() === '') {
@@ -39,15 +43,15 @@ function parseSessionTtlHours(raw?: string): number {
 }
 function loadConfig() {
     try {
-        const nodeEnvRaw = requireNonEmpty('NODE_ENV');
-        const hostRaw = requireNonEmpty('HOST');
-        const portRaw = requireNonEmpty('PORT');
+        const nodeEnv = parseNodeEnv(process.env['NODE_ENV']);
+        const host = process.env['HOST']?.trim() || '0.0.0.0';
+        const port = parsePort(process.env['PORT']?.trim() || '3000');
         requireNonEmpty('DATABASE_URL');
         const sessionTtlHours = parseSessionTtlHours(process.env['SESSION_TTL_HOURS']);
         return {
-            nodeEnv: parseNodeEnv(nodeEnvRaw),
-            host: hostRaw,
-            port: parsePort(portRaw),
+            nodeEnv,
+            host,
+            port,
             sessionTtlHours,
             sessionTtlMs: sessionTtlHours * 60 * 60 * 1000,
             get databaseUrl(): string {

@@ -10,11 +10,12 @@ import {
 } from './types';
 import { notifyUnauthorized } from './auth-api';
 import { queryCache } from './cache';
+import { API_BASE_URL } from './config';
 
 export class HttpReconciliationApiClient {
     private readonly baseUrl: string;
 
-    constructor(baseUrl = '') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 
@@ -49,7 +50,7 @@ export class HttpReconciliationApiClient {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(input),
         });
         const result = await this.handleResponse<InitiateRunResult>(res);
@@ -80,7 +81,7 @@ export class HttpReconciliationApiClient {
                         headers: {
                             Accept: 'application/json',
                         },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                     });
 
                     return await this.handleResponse<ListRunsResult>(res);
@@ -118,7 +119,7 @@ export class HttpReconciliationApiClient {
                     headers: {
                         Accept: 'application/json',
                     },
-                    credentials: 'same-origin',
+                    credentials: 'include',
                 });
                 return this.handleResponse<ReconciliationRunSummary>(res);
             },
@@ -153,7 +154,7 @@ export class HttpReconciliationApiClient {
                         headers: {
                             Accept: 'application/json',
                         },
-                        credentials: 'same-origin',
+                        credentials: 'include',
                     });
 
                     return await this.handleResponse<ListMatchesResult>(res);
