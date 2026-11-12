@@ -75,6 +75,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=20s \
   CMD curl -f "http://127.0.0.1:${PORT:-3000}/health" || exit 1
 
-# Default command launches the Express API server via existing production start script
-CMD ["npm", "start"]
+# Default command applies pending migrations and launches the Express API server
+CMD ["sh", "-c", "npx prisma migrate deploy && exec npm start"]
 
